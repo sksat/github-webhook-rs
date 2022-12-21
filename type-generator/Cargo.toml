@@ -3,6 +3,11 @@ name = "github-webhook-type-generator"
 version = "0.1.0"
 edition = "2021"
 
+description = "GitHub webhook payload type generator for Rust"
+repository = "https://github.com/sksat/github-webhook-rs"
+authors = ["sksat <sksat@sksat.net>"]
+license = "MIT"
+
 [dependencies]
 anyhow = "1.0.68"
 structopt = "0.3.26"
