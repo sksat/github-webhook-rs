@@ -331,7 +331,7 @@ name = "github-webhook"
 version = "0.1.0+v6.8.0"
 dependencies = [
  "anyhow",
- "github-webhook-type-generator",
+ "github-webhook-type-generator 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "reqwest",
  "serde",
 ]
@@ -339,6 +339,19 @@ dependencies = [
 [[package]]
 name = "github-webhook-type-generator"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "structopt",
+ "swc_common",
+ "swc_ecma_ast",
+ "swc_ecma_parser",
+]
+
+[[package]]
+name = "github-webhook-type-generator"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2b5fee26f8a8dfb3a656fe32d976400dc5bf02834a6789c67b24c8cf9e48f9d"
 dependencies = [
  "anyhow",
  "structopt",
