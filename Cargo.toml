@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "type-generator",
+    "github-webhook"
+]
