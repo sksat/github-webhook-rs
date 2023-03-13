@@ -343,7 +343,7 @@ dependencies = [
  "anyhow",
  "structopt",
  "swc_common",
- "swc_ecma_ast",
+ "swc_ecma_ast 0.100.1",
  "swc_ecma_parser",
 ]
 
@@ -356,7 +356,7 @@ dependencies = [
  "anyhow",
  "structopt",
  "swc_common",
- "swc_ecma_ast",
+ "swc_ecma_ast 0.95.9",
  "swc_ecma_parser",
 ]
 
@@ -1200,9 +1200,9 @@ dependencies = [
 
 [[package]]
 name = "string_enum"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "994453cd270ad0265796eb24abf5540091ed03e681c5f3c12bc33e4db33253e1"
+checksum = "41491e23e7db79343236a6ced96325ff132eb09e29ac4c5b8132b9c55aaaae89"
 dependencies = [
  "pmutil",
  "proc-macro2",
@@ -1308,6 +1308,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "swc_ecma_ast"
+version = "0.100.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7dbfdbe05dde274473a6030dcf5e52e579516aea761d25d7a8d128f2ab597f09"
+dependencies = [
+ "bitflags",
+ "is-macro",
+ "num-bigint",
+ "scoped-tls",
+ "serde",
+ "string_enum",
+ "swc_atoms",
+ "swc_common",
+ "unicode-id",
+]
+
+[[package]]
 name = "swc_ecma_parser"
 version = "0.123.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1321,7 +1338,7 @@ dependencies = [
  "smallvec",
  "swc_atoms",
  "swc_common",
- "swc_ecma_ast",
+ "swc_ecma_ast 0.95.9",
  "tracing",
  "typed-arena",
 ]
