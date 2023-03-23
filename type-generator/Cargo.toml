@@ -9,7 +9,7 @@ authors = ["sksat <sksat@sksat.net>"]
 license = "MIT"
 
 [dependencies]
-anyhow = "1.0.69"
+anyhow = "1.0.70"
 structopt = "0.3.26"
 swc_common = { version = "0.29.37", features = ["tty-emitter"]}
 swc_ecma_ast = "0.95.6"
