@@ -253,37 +253,11 @@ fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> Result<RustEnu
 pub fn dts2rs(dts_file: &PathBuf) -> Result<String> {
     let mut out = String::new();
 
-    let cm: Lrc<SourceMap> = Default::default();
-    let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
-
-    // Real usage
-    let fm = cm
-        .load_file(Path::new(dts_file))
-        .unwrap_or_else(|_| panic!("failed to load {}", &dts_file.display()));
-
-    let lexer = Lexer::new(
-        Syntax::Typescript(Default::default()),
-        Default::default(),
-        StringInput::from(&*fm),
-        None,
-    );
-
-    let capturing = Capturing::new(lexer);
-
-    let mut parser = Parser::new_from(capturing);
-
-    for e in parser.take_errors() {
-        e.into_diagnostic(&handler).emit();
-    }
-
-    let module = parser
-        .parse_typescript_module()
-        .map_err(|e| e.into_diagnostic(&handler).emit())
-        .expect("Failed to parse module.");
+    let module = extract_module(dts_file);
 
     //println!("Tokens: {:?}", parser.input().take());
 
-    let ice = &module.body[1]
+    let ice = module.body[1]
         .as_module_decl()
         .unwrap()
         .as_export_decl()
@@ -392,6 +366,36 @@ pub fn dts2rs(dts_file: &PathBuf) -> Result<String> {
     Ok(out)
 }
 
+fn extract_module(dts_file: &PathBuf) -> swc_ecma_ast::Module {
+    let cm: Lrc<SourceMap> = Default::default();
+    let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
+
+    // Real usage
+    let fm = cm
+        .load_file(Path::new(dts_file))
+        .unwrap_or_else(|_| panic!("failed to load {}", &dts_file.display()));
+
+    let lexer = Lexer::new(
+        Syntax::Typescript(Default::default()),
+        Default::default(),
+        StringInput::from(&*fm),
+        None,
+    );
+
+    let capturing = Capturing::new(lexer);
+
+    let mut parser = Parser::new_from(capturing);
+
+    for e in parser.take_errors() {
+        e.into_diagnostic(&handler).emit();
+    }
+
+    parser
+        .parse_typescript_module()
+        .map_err(|e| e.into_diagnostic(&handler).emit())
+        .expect("Failed to parse module.")
+}
+
 fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
     use swc_ecma_ast::TsKeywordTypeKind;
     use swc_ecma_ast::TsUnionOrIntersectionType;
@@ -493,4 +497,36 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
     };
 
     (nullable, typ)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_module() {
+        let module = extract_module(&PathBuf::from("test.ts"));
+
+        let ice = module.body[1]
+            .as_module_decl()
+            .unwrap()
+            .as_export_decl()
+            .unwrap()
+            .decl
+            .as_ts_type_alias()
+            .unwrap()
+            .type_ann
+            .as_ts_union_or_intersection_type()
+            .unwrap()
+            .as_ts_union_type()
+            .unwrap()
+            .types[0]
+            .as_ts_type_ref()
+            .unwrap()
+            .type_name
+            .as_ident()
+            .unwrap()
+            .as_ref();
+        assert_eq!(ice, "IssueCommentCreatedEvent");
+    }
 }
