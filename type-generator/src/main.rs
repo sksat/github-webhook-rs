@@ -1,10 +1,12 @@
+use std::path::PathBuf;
+
 use structopt::StructOpt;
 
 use github_webhook_type_generator::*;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    dts_file: String,
+    dts_file: PathBuf,
 }
 
 fn main() {

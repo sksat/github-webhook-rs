@@ -1,4 +1,4 @@
-use std::fmt::Write;
+use std::{fmt::Write, path::PathBuf};
 
 use std::path::Path;
 
@@ -250,7 +250,7 @@ fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> Result<RustEnu
     })
 }
 
-pub fn dts2rs(dts_file: &str) -> Result<String> {
+pub fn dts2rs(dts_file: &PathBuf) -> Result<String> {
     let mut out = String::new();
 
     let cm: Lrc<SourceMap> = Default::default();
@@ -259,7 +259,7 @@ pub fn dts2rs(dts_file: &str) -> Result<String> {
     // Real usage
     let fm = cm
         .load_file(Path::new(dts_file))
-        .unwrap_or_else(|_| panic!("failed to load {}", &dts_file));
+        .unwrap_or_else(|_| panic!("failed to load {}", &dts_file.display()));
 
     let lexer = Lexer::new(
         Syntax::Typescript(Default::default()),

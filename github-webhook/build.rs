@@ -7,30 +7,75 @@ use anyhow::Result;
 
 use github_webhook_type_generator::dts2rs;
 
-fn main() -> Result<()> {
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+#[derive(Default)]
+pub struct Opt {
+    pub version: Version,
+    pub out_path_ts: OutPathTs,
+    pub out_path_rs: OutPathRs,
+}
 
-    let pkg_version = env::var("CARGO_PKG_VERSION").unwrap();
-    let pkg_version: Vec<&str> = pkg_version.split('+').collect();
-    let version = if pkg_version.len() == 2 {
-        pkg_version[1]
-    } else {
-        "master"
-    };
+pub struct Version(pub String);
 
+impl Default for Version {
+    fn default() -> Self {
+        let pkg_version = env::var("CARGO_PKG_VERSION").unwrap();
+        let splitted: Vec<&str> = pkg_version.split('+').collect();
+        let branch_name = if splitted.len() == 2 {
+            splitted[1]
+        } else {
+            "master"
+        }
+        .to_string();
+        Self(branch_name)
+    }
+}
+
+pub struct OutPathTs(PathBuf);
+
+impl Default for OutPathTs {
+    fn default() -> Self {
+        let mut path = PathBuf::from(env::var("OUT_DIR").unwrap());
+        path.push("schema.d.ts");
+        Self(path)
+    }
+}
+
+pub struct OutPathRs(PathBuf);
+
+impl Default for OutPathRs {
+    fn default() -> Self {
+        let mut path = PathBuf::from(env::var("OUT_DIR").unwrap());
+        path.push("types.rs");
+        Self(path)
+    }
+}
+
+pub fn run_transform(
+    Opt {
+        version: Version(branch),
+        out_path_ts: OutPathTs(dts_file),
+        out_path_rs: OutPathRs(rs_file),
+    }: Opt,
+) -> Result<()> {
     // setup .d.ts file
     let repo = "octokit/webhooks";
     let url =
-        format!("https://raw.githubusercontent.com/{repo}/{version}/payload-types/schema.d.ts");
+        format!("https://raw.githubusercontent.com/{repo}/{branch}/payload-types/schema.d.ts");
 
     let body = reqwest::blocking::get(url)?.text()?;
-    let dts_file = out_path.join("schema.d.ts");
     std::fs::write(&dts_file, body)?;
 
-    let rs = dts2rs(dts_file.to_str().unwrap()).unwrap();
+    let rs = dts2rs(&dts_file).unwrap();
 
-    let mut writer = BufWriter::new(File::create(format!("{}/types.rs", out_path.display()))?);
-    write!(writer, "{}", rs)?;
+    let mut writer = BufWriter::new(File::create(rs_file)?);
+    write!(writer, "{rs}")?;
+
+    Ok(())
+}
+
+fn main() -> Result<()> {
+    #[cfg(feature = "expose-default")]
+    run_transform(Default::default())?;
 
     Ok(())
 }
