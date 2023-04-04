@@ -4,3 +4,6 @@ members = [
     "type-generator",
     "github-webhook"
 ]
+
+[workspace.dependencies]
+github-webhook-type-generator.path = "./type-generator"
