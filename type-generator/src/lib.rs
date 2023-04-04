@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use swc_common::{
     self,
@@ -22,7 +25,7 @@ pub enum RustType {
     String,
     Number,
     Boolean,
-    Custom(String),
+    Custom(TokenStream),
     Array(Box<RustType>),
     Empty, // ()
     Unknown,
@@ -45,11 +48,109 @@ impl RustType {
 }
 
 pub struct RustStruct {
+    pub attr: RustContainerAttrs,
     pub name: String,
     pub member: Vec<RustStructMember>,
 }
 
+pub enum RustContainerAttrs {
+    Default,
+    With(Vec<RustStructAttr>),
+}
+
+impl RustContainerAttrs {
+    fn add_attr(&mut self, a: RustStructAttr) {
+        match self {
+            RustContainerAttrs::Default => *self = Self::With(vec![a]),
+            RustContainerAttrs::With(v) => v.push(a),
+        }
+    }
+}
+
+impl ToTokens for RustContainerAttrs {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.extend(
+            match self {
+                RustContainerAttrs::Default => quote! {
+                    #[derive(Debug, Deserialize)]
+                },
+                RustContainerAttrs::With(w) => quote! {
+                    #[derive(Debug, Deserialize)]
+                    #(#w)*
+                },
+            }
+            .into_iter(),
+        )
+    }
+}
+
+pub enum RustStructAttr {
+    Serde(SerdeContainerAttr),
+}
+
+impl ToTokens for RustStructAttr {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.extend(
+            match self {
+                RustStructAttr::Serde(s) => quote! {
+                    #[serde(#s)]
+                },
+            }
+            .into_iter(),
+        )
+    }
+}
+
+pub enum SerdeContainerAttr {
+    RenameAll(RenameRule),
+    Tag(String),
+}
+
+impl ToTokens for SerdeContainerAttr {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.extend(
+            match self {
+                SerdeContainerAttr::RenameAll(_) => todo!(),
+                SerdeContainerAttr::Tag(name) => quote! {
+                    tag = #name
+                },
+            }
+            .into_iter(),
+        )
+    }
+}
+
+pub enum SerdeFieldAttr {
+    Rename(String),
+}
+
+pub enum SerdeVariantAttr {
+    Rename(String),
+    Borrow {
+        /// lifetime parameter without `'`
+        lifetime: String,
+    },
+}
+
+pub enum RenameRule {
+    PascalCase,
+    SnakeCase,
+    ScreamingSnakeCase,
+}
+
+impl ToString for RenameRule {
+    fn to_string(&self) -> String {
+        match self {
+            RenameRule::PascalCase => "PascalCase",
+            RenameRule::SnakeCase => "snake_case",
+            RenameRule::ScreamingSnakeCase => "SCREAMING_SNAKE_CASE",
+        }
+        .to_string()
+    }
+}
+
 pub struct RustEnum {
+    pub attr: RustContainerAttrs,
     pub name: String,
     pub member: Vec<RustEnumMember>,
 }
@@ -72,8 +173,37 @@ impl RustMemberType {
 }
 
 pub enum RustEnumMember {
-    TypeAlias(String),
-    EnumVariant(String),
+    Nullary(String),
+    /// has the same ident. this is unary
+    Unary(String),
+    UnaryNamed {
+        variant_name: String,
+        type_name: String,
+    },
+}
+
+impl RustEnumMember {
+    fn name_unary(&mut self, variant_name: String) {
+        match self {
+            RustEnumMember::Unary(u) => {
+                *self = Self::UnaryNamed {
+                    variant_name,
+                    type_name: u.clone(),
+                }
+            }
+            _ => unreachable!("do not call with this"),
+        }
+    }
+}
+
+impl RustEnumMember {
+    pub fn as_unary(&self) -> Option<&String> {
+        if let Self::Unary(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
 }
 
 impl ToTokens for RustType {
@@ -82,7 +212,10 @@ impl ToTokens for RustType {
             RustType::String => "String",
             RustType::Number => "usize",
             RustType::Boolean => "bool",
-            RustType::Custom(s) => s.as_str(),
+            RustType::Custom(s) => {
+                tokens.extend(s.clone().into_iter());
+                return;
+            }
             RustType::Array(t) => {
                 tokens.extend(
                     quote! {
@@ -153,11 +286,12 @@ impl ToTokens for RustStructMember {
 
 impl ToTokens for RustStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let Self { name, member } = self;
+        let Self { name, member, attr } = self;
         let name = id!(name);
 
         tokens.extend(
             quote! {
+                #attr
                 pub struct #name {
                     #(#member)*
                 }
@@ -169,11 +303,12 @@ impl ToTokens for RustStruct {
 
 impl ToTokens for RustEnum {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let Self { name, member } = self;
+        let Self { name, member, attr } = self;
         let name = id!(name);
 
         tokens.extend(
             quote! {
+                #attr
                 pub enum #name {
                     #(#member)*
                 }
@@ -187,13 +322,21 @@ impl ToTokens for RustEnumMember {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         tokens.extend(
             match self {
-                RustEnumMember::EnumVariant(v) => {
+                RustEnumMember::Nullary(v) => {
                     let v = id!(v);
                     quote!(#v,)
                 }
-                RustEnumMember::TypeAlias(a) => {
+                RustEnumMember::Unary(a) => {
                     let a = id!(a);
                     quote!(#a(#a),)
+                }
+                RustEnumMember::UnaryNamed {
+                    variant_name,
+                    type_name,
+                } => {
+                    let variant_name = id!(variant_name);
+                    let type_name = id!(type_name);
+                    quote!(#variant_name(#type_name),)
                 }
             }
             .into_iter(),
@@ -201,7 +344,10 @@ impl ToTokens for RustEnumMember {
     }
 }
 
-fn interface2struct(interface: &swc_ecma_ast::TsInterfaceDecl) -> RustStruct {
+fn interface2struct(
+    interface: &swc_ecma_ast::TsInterfaceDecl,
+    lkm: &mut LiteralKeyMap,
+) -> RustStruct {
     let name = interface.id.sym.to_string();
     let ibody = &interface.body.body;
 
@@ -246,6 +392,21 @@ fn interface2struct(interface: &swc_ecma_ast::TsInterfaceDecl) -> RustStruct {
         let ptype = &prop.type_ann.as_ref().unwrap().type_ann;
         let (is_optional, ty) = ts_type_to_rs(ptype);
 
+        fn extract_literal_type(ptype: &swc_ecma_ast::TsType) -> Option<&str> {
+            ptype.as_ts_lit_type()?.lit.as_str()?.raw.as_deref()
+        }
+
+        if let Some(lit) = extract_literal_type(ptype) {
+            lkm.entry(name.clone()).or_default().insert(
+                pkey.to_owned(),
+                lit.strip_prefix('\"')
+                    .unwrap()
+                    .strip_suffix('\"')
+                    .unwrap()
+                    .to_owned(),
+            );
+        }
+
         rmember.push(RustStructMember {
             ty: RustMemberType { ty, is_optional },
             name: pkey.to_string(),
@@ -254,6 +415,7 @@ fn interface2struct(interface: &swc_ecma_ast::TsInterfaceDecl) -> RustStruct {
     }
 
     RustStruct {
+        attr: RustContainerAttrs::Default,
         name,
         member: rmember,
     }
@@ -267,7 +429,7 @@ fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
                 // export type Hoge = Fuga | Fuge;
                 let i = &tref.type_name.as_ident().unwrap();
                 let sym = i.sym.to_string();
-                member.push(RustEnumMember::TypeAlias(sym));
+                member.push(RustEnumMember::Unary(sym));
                 //write!(out, "{}({})", &i.sym, &i.sym)?;
             }
             swc_ecma_ast::TsType::TsLitType(tlit) => {
@@ -278,7 +440,7 @@ fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
                     _ => todo!(),
                 };
                 //write!(out, "{}", s)?;
-                member.push(RustEnumMember::EnumVariant(s));
+                member.push(RustEnumMember::Nullary(s));
             }
             swc_ecma_ast::TsType::TsArrayType(_tarray) => {
                 // export WebhookEvents = | ( | "a" | "b" | "c" )[] | ["*"];
@@ -311,18 +473,40 @@ fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
     }
 
     RustEnum {
+        attr: RustContainerAttrs::Default,
         name: name.to_string(),
         member,
     }
 }
 
+enum RustSegment {
+    Struct(RustStruct),
+    Enum(RustEnum),
+    Alias(proc_macro2::Ident, RustType),
+}
+
+impl RustSegment {
+    fn into_token_stream(self) -> TokenStream {
+        match self {
+            RustSegment::Struct(s) => s.into_token_stream(),
+            RustSegment::Enum(e) => e.into_token_stream(),
+            RustSegment::Alias(ident, typ) => quote! {
+                pub type #ident = #typ;
+            },
+        }
+    }
+}
+
+type LiteralKeyMap = HashMap<String, HashMap<String, String>>;
+
 pub fn dts2rs(dts_file: &PathBuf) -> TokenStream {
     let module = extract_module(dts_file);
 
-    let mut token_streams = Vec::new();
+    let mut segments = Vec::new();
 
-    // processed later
-    // let mut leftovers = Vec::new();
+    // candidate for discriminated union using literal
+    // type name -> prop name -> literal value
+    let mut lkm: LiteralKeyMap = HashMap::new();
 
     for b in module.body {
         let b = b.as_module_decl().unwrap();
@@ -330,7 +514,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> TokenStream {
         let decl = &b.decl;
 
         //dbg!(&decl);
-        let token_stream = match decl {
+        let segment = match decl {
             swc_ecma_ast::Decl::TsInterface(interface) => {
                 //let name = interface.id.sym.as_ref();
                 //match name {
@@ -338,11 +522,8 @@ pub fn dts2rs(dts_file: &PathBuf) -> TokenStream {
                 //    _ => {}
                 //}
 
-                let rstruct = interface2struct(interface);
-                quote! {
-                    // ts interface
-                    #rstruct
-                }
+                let rstruct = interface2struct(interface, &mut lkm);
+                RustSegment::Struct(rstruct)
             }
             swc_ecma_ast::Decl::TsTypeAlias(talias) => {
                 let a = talias.id.sym.as_ref();
@@ -361,29 +542,21 @@ pub fn dts2rs(dts_file: &PathBuf) -> TokenStream {
                 let typ = &talias.type_ann;
                 match typ.as_ref() {
                     swc_ecma_ast::TsType::TsTypeRef(tref) => {
-                        let rhs = &tref.type_name.as_ident().unwrap().sym.to_string();
+                        let rhs = &tref.type_name.as_ident().unwrap().sym;
                         let rhs = id!(rhs);
-                        quote! {
-                            // ts type alias of another type
-                            pub type #ident = #rhs;
-                        }
+                        RustSegment::Alias(ident, RustType::Custom(quote!(#rhs)))
                     }
                     swc_ecma_ast::TsType::TsUnionOrIntersectionType(tuoi) => {
                         let tunion = tuoi.as_ts_union_type().unwrap();
 
-                        let renum = tunion2enum(a, tunion).into_token_stream();
-                        quote! {
-                            // ts type alias of union
-                            #renum
-                        }
+                        let renum = tunion2enum(a, tunion);
+                        RustSegment::Enum(renum)
                     }
                     swc_ecma_ast::TsType::TsKeywordType(..)
                     | swc_ecma_ast::TsType::TsArrayType(..) => {
                         // export type Hoge = number;
                         let typ = ts_type_to_rs(typ).1;
-                        quote! {
-                            pub type #ident = #typ;
-                        }
+                        RustSegment::Alias(ident, typ)
                     }
                     swc_ecma_ast::TsType::TsTypeOperator(_toperator) => {
                         // export type WebhookEventName = keyof EventPayloadMap;
@@ -398,11 +571,47 @@ pub fn dts2rs(dts_file: &PathBuf) -> TokenStream {
             }
             _ => unreachable!(),
         };
-        token_streams.push(token_stream);
+        segments.push(segment);
         //println!("{}", b.is_export_decl());
     }
 
-    token_streams.into_iter().collect()
+    for segment in &mut segments {
+        adapt_internal_tag(segment, &lkm);
+    }
+
+    segments
+        .into_iter()
+        .flat_map(|rss| rss.into_token_stream())
+        .collect()
+}
+
+fn adapt_internal_tag(segment: &mut RustSegment, lkm: &LiteralKeyMap) -> Option<()> {
+    if let RustSegment::Enum(re) = segment {
+        let mut props: HashMap<String, String> = Default::default();
+        for memb in &re.member {
+            let inter = memb.as_unary()?;
+            let map = lkm.get(inter)?;
+            if props.is_empty() {
+                props = map.clone();
+                continue;
+            }
+            props.retain(|k, _| map.contains_key(k));
+            if props.is_empty() {
+                return None;
+            }
+        }
+        // assert !props.is_empty()
+        assert_eq!(props.len(), 1);
+        let tag_name = props.keys().next().unwrap().to_owned();
+        for memb in &mut re.member {
+            let inter = memb.as_unary().unwrap();
+            let variant_name = lkm.get(inter).unwrap().get(&tag_name).unwrap().to_owned();
+            memb.name_unary(variant_name);
+        }
+        re.attr
+            .add_attr(RustStructAttr::Serde(SerdeContainerAttr::Tag(tag_name)));
+    }
+    Some(())
 }
 
 fn extract_module(dts_file: &PathBuf) -> swc_ecma_ast::Module {
@@ -522,7 +731,8 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
         }
         swc_ecma_ast::TsType::TsLitType(_tslit) => RustType::UnknownLiteral,
         swc_ecma_ast::TsType::TsTypeRef(tref) => {
-            RustType::Custom(tref.type_name.as_ident().unwrap().sym.as_ref().to_string())
+            let id = id!(tref.type_name.as_ident().unwrap().sym.as_ref());
+            RustType::Custom(quote!(#id))
         }
         swc_ecma_ast::TsType::TsArrayType(tarray) => {
             let (_n, etype) = ts_type_to_rs(&tarray.elem_type);
