@@ -1,7 +1,8 @@
 use std::env;
 use std::fs::File;
-use std::io::{BufWriter, Write};
+use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
+use std::process::Command;
 
 use anyhow::Result;
 
@@ -67,8 +68,15 @@ pub fn run_transform(
 
     let rs = dts2rs(&dts_file).unwrap();
 
-    let mut writer = BufWriter::new(File::create(rs_file)?);
+    let mut writer = BufWriter::new(File::create(&rs_file)?);
     write!(writer, "{rs}")?;
+
+    let output = Command::new("rustfmt").arg(rs_file).output()?;
+    io::stderr().write_all(&output.stderr).unwrap();
+    let status = output.status;
+    if !status.success() {
+        panic!("failed to execute rustfmt: {status}")
+    }
 
     Ok(())
 }
