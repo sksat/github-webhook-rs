@@ -255,40 +255,9 @@ pub fn dts2rs(dts_file: &PathBuf) -> Result<String> {
 
     let module = extract_module(dts_file);
 
-    //println!("Tokens: {:?}", parser.input().take());
-
-    let ice = module.body[1]
-        .as_module_decl()
-        .unwrap()
-        .as_export_decl()
-        .unwrap()
-        .decl
-        .as_ts_type_alias()
-        .unwrap()
-        .type_ann
-        .as_ts_union_or_intersection_type()
-        .unwrap()
-        .as_ts_union_type()
-        .unwrap()
-        .types[0] // IssueCommentEvent
-        .as_ts_type_ref()
-        .unwrap()
-        .type_name
-        .as_ident()
-        .unwrap()
-        .as_ref();
-
-    writeln!(out, "// {ice}")?;
-
-    for b in &module.body {
-        // skip statement
-        if b.is_stmt() {
-            continue;
-        }
+    for b in module.body {
         let b = b.as_module_decl().unwrap();
-
-        // skip not export decl
-        let b = b.as_export_decl().unwrap();
+        let b = b.as_export_decl().expect("module have only exports");
         let decl = &b.decl;
 
         //dbg!(&decl);
