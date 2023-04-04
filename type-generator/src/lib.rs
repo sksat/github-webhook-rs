@@ -20,19 +20,19 @@ pub enum RustType {
     Custom(String),
     Array(Box<RustType>),
     Empty, // ()
-    Unknwon,
-    UnknwonLiteral,
-    UnknwonIntersection,
-    UnknwonUnion,
+    Unknown,
+    UnknownLiteral,
+    UnknownIntersection,
+    UnknownUnion,
 }
 
 impl RustType {
     pub fn is_unknown(&self) -> bool {
         match &self {
-            RustType::Unknwon
-            | RustType::UnknwonLiteral
-            | RustType::UnknwonIntersection
-            | RustType::UnknwonUnion => true,
+            RustType::Unknown
+            | RustType::UnknownLiteral
+            | RustType::UnknownIntersection
+            | RustType::UnknownUnion => true,
             RustType::Array(t) => t.is_unknown(),
             _ => false,
         }
@@ -70,10 +70,10 @@ impl std::string::ToString for RustType {
             RustType::Custom(s) => s.clone(),
             RustType::Array(t) => format!("Vec<{}>", t.to_string()),
             RustType::Empty => "()".to_string(),
-            RustType::Unknwon => "Unknwon".to_string(),
-            RustType::UnknwonLiteral => "UnknwonLiteral".to_string(),
-            RustType::UnknwonIntersection => "UnknwonIntersection".to_string(),
-            RustType::UnknwonUnion => "UnknwonUnion".to_string(),
+            RustType::Unknown => "Unknown".to_string(),
+            RustType::UnknownLiteral => "UnknownLiteral".to_string(),
+            RustType::UnknownIntersection => "UnknownIntersection".to_string(),
+            RustType::UnknownUnion => "UnknownUnion".to_string(),
         }
     }
 }
@@ -82,7 +82,7 @@ impl std::fmt::Display for RustStructMember {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let name = &self.name;
 
-        // comment unknwon
+        // comment Unknown
         if self.typ.is_unknown() {
             write!(f, "// ")?;
         }
@@ -465,16 +465,16 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
                     // other types
                     dbg!(types);
 
-                    RustType::UnknwonUnion
+                    RustType::UnknownUnion
                 }
                 TsUnionOrIntersectionType::TsIntersectionType(tints) => {
                     dbg!(tints);
                     //todo!();
-                    RustType::UnknwonIntersection
+                    RustType::UnknownIntersection
                 }
             }
         }
-        swc_ecma_ast::TsType::TsLitType(_tslit) => RustType::UnknwonLiteral,
+        swc_ecma_ast::TsType::TsLitType(_tslit) => RustType::UnknownLiteral,
         swc_ecma_ast::TsType::TsTypeRef(tref) => {
             RustType::Custom(tref.type_name.as_ident().unwrap().sym.as_ref().to_string())
         }
@@ -487,12 +487,12 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
             for m in &tlit.members {
                 dbg!(m);
             }
-            RustType::Unknwon
+            RustType::Unknown
         }
         _ => {
             //dbg!(typ);
             //todo!();
-            RustType::Unknwon
+            RustType::Unknown
         }
     };
 
