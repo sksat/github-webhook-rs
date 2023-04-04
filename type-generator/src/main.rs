@@ -12,6 +12,6 @@ struct Opt {
 fn main() {
     let opt = Opt::from_args();
 
-    let rs = dts2rs(&opt.dts_file).unwrap();
+    let rs = dts2rs(&opt.dts_file);
     print!("{}", rs);
 }

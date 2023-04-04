@@ -1,8 +1,4 @@
-use std::{fmt::Write, path::PathBuf};
-
-use std::path::Path;
-
-use anyhow::Result;
+use std::path::{Path, PathBuf};
 
 use swc_common::{
     self,
@@ -12,6 +8,15 @@ use swc_common::{
 };
 
 use swc_ecma_parser::{lexer::Lexer, Capturing, Parser, StringInput, Syntax};
+
+use proc_macro2::{TokenStream, TokenTree};
+use quote::{quote, ToTokens, TokenStreamExt};
+
+macro_rules! id {
+    ($($tt:tt)*) => {
+        proc_macro2::Ident::new($($tt)*, proc_macro2::Span::call_site())
+    };
+}
 
 pub enum RustType {
     String,
@@ -51,9 +56,19 @@ pub struct RustEnum {
 
 pub struct RustStructMember {
     pub name: String,
-    pub typ: RustType,
-    pub optional: bool,
+    pub ty: RustMemberType,
     pub comment: Option<String>,
+}
+
+pub struct RustMemberType {
+    pub ty: RustType,
+    pub is_optional: bool,
+}
+
+impl RustMemberType {
+    pub fn is_unknown(&self) -> bool {
+        self.ty.is_unknown()
+    }
 }
 
 pub enum RustEnumMember {
@@ -61,80 +76,132 @@ pub enum RustEnumMember {
     EnumVariant(String),
 }
 
-impl std::string::ToString for RustType {
-    fn to_string(&self) -> String {
-        match self {
-            RustType::String => "String".to_string(),
-            RustType::Number => "usize".to_string(),
-            RustType::Boolean => "bool".to_string(),
-            RustType::Custom(s) => s.clone(),
-            RustType::Array(t) => format!("Vec<{}>", t.to_string()),
-            RustType::Empty => "()".to_string(),
-            RustType::Unknown => "Unknown".to_string(),
-            RustType::UnknownLiteral => "UnknownLiteral".to_string(),
-            RustType::UnknownIntersection => "UnknownIntersection".to_string(),
-            RustType::UnknownUnion => "UnknownUnion".to_string(),
-        }
-    }
-}
-
-impl std::fmt::Display for RustStructMember {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let name = &self.name;
-
-        // comment Unknown
-        if self.typ.is_unknown() {
-            write!(f, "// ")?;
-        }
-
-        let typ = self.typ.to_string();
-
-        let typ = if self.optional {
-            format!("Option<{}>", typ)
-        } else {
-            typ
-        };
-
-        if let Some(comment) = &self.comment {
-            write!(f, "pub {name}: {typ}, // {comment}")
-        } else {
-            write!(f, "pub {name}: {typ},")
-        }
-    }
-}
-
-impl std::fmt::Display for RustStruct {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "#[derive(Debug, Deserialize)]")?;
-        writeln!(f, "pub struct {} {{", self.name)?;
-
-        for m in &self.member {
-            writeln!(f, "  {}", m)?;
-        }
-
-        writeln!(f, "}}")
-    }
-}
-
-impl std::fmt::Display for RustEnum {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "#[derive(Debug, Deserialize)]")?;
-        writeln!(f, "pub enum {} {{", self.name)?;
-
-        for m in &self.member {
-            write!(f, "  ")?;
-            match m {
-                RustEnumMember::EnumVariant(v) => write!(f, "{v}")?,
-                RustEnumMember::TypeAlias(a) => write!(f, "{a}({a})")?,
+impl ToTokens for RustType {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let s = match self {
+            RustType::String => "String",
+            RustType::Number => "usize",
+            RustType::Boolean => "bool",
+            RustType::Custom(s) => s.as_str(),
+            RustType::Array(t) => {
+                tokens.extend(
+                    quote! {
+                        Vec<#t>
+                    }
+                    .into_iter(),
+                );
+                return;
             }
-            writeln!(f, ",")?;
-        }
-
-        writeln!(f, "}}")
+            RustType::Empty => {
+                tokens.append(TokenTree::Group(proc_macro2::Group::new(
+                    proc_macro2::Delimiter::Parenthesis,
+                    Default::default(),
+                )));
+                return;
+            }
+            RustType::Unknown => "Unknown",
+            RustType::UnknownLiteral => "UnknownLiteral",
+            RustType::UnknownIntersection => "UnknownIntersection",
+            RustType::UnknownUnion => "UnknownUnion",
+        };
+        tokens.append(TokenTree::Ident(id!(s)));
     }
 }
 
-fn interface2struct(interface: &swc_ecma_ast::TsInterfaceDecl) -> Result<RustStruct> {
+impl ToTokens for RustMemberType {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let inner_ty = &self.ty;
+        tokens.extend(
+            if self.is_optional {
+                quote! {
+                    Option<#inner_ty>
+                }
+            } else {
+                quote! {
+                    #inner_ty
+                }
+            }
+            .into_iter(),
+        )
+    }
+}
+
+impl ToTokens for RustStructMember {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let Self { name, ty, comment } = self;
+        let name = id!(name);
+
+        tokens.extend(
+            if self.ty.is_unknown() {
+                quote! {
+                    /* unknown type */
+                }
+            } else if let Some(comment) = comment {
+                quote! {
+                    #[doc=#comment]
+                    pub #name: #ty,
+                }
+            } else {
+                quote! {
+                    pub #name: #ty,
+                }
+            }
+            .into_iter(),
+        );
+    }
+}
+
+impl ToTokens for RustStruct {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let Self { name, member } = self;
+        let name = id!(name);
+
+        tokens.extend(
+            quote! {
+                pub struct #name {
+                    #(#member)*
+                }
+            }
+            .into_iter(),
+        );
+    }
+}
+
+impl ToTokens for RustEnum {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let Self { name, member } = self;
+        let name = id!(name);
+
+        tokens.extend(
+            quote! {
+                pub enum #name {
+                    #(#member)*
+                }
+            }
+            .into_iter(),
+        );
+    }
+}
+
+impl ToTokens for RustEnumMember {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.extend(
+            match self {
+                RustEnumMember::EnumVariant(v) => {
+                    let v = id!(v);
+                    quote!(#v,)
+                }
+                RustEnumMember::TypeAlias(a) => {
+                    let a = id!(a);
+                    quote!(#a(#a),)
+                }
+            }
+            .into_iter(),
+        )
+    }
+}
+
+fn interface2struct(interface: &swc_ecma_ast::TsInterfaceDecl) -> RustStruct {
     let name = interface.id.sym.to_string();
     let ibody = &interface.body.body;
 
@@ -177,23 +244,22 @@ fn interface2struct(interface: &swc_ecma_ast::TsInterfaceDecl) -> Result<RustStr
         };
 
         let ptype = &prop.type_ann.as_ref().unwrap().type_ann;
-        let (optional, typ) = ts_type_to_rs(ptype);
+        let (is_optional, ty) = ts_type_to_rs(ptype);
 
         rmember.push(RustStructMember {
-            typ,
+            ty: RustMemberType { ty, is_optional },
             name: pkey.to_string(),
-            optional,
             comment: None,
         });
     }
 
-    Ok(RustStruct {
+    RustStruct {
         name,
         member: rmember,
-    })
+    }
 }
 
-fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> Result<RustEnum> {
+fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
     let mut member = Vec::new();
     for t in &tunion.types {
         match &**t {
@@ -244,16 +310,19 @@ fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> Result<RustEnu
         //writeln!(out, ",")?;
     }
 
-    Ok(RustEnum {
+    RustEnum {
         name: name.to_string(),
         member,
-    })
+    }
 }
 
-pub fn dts2rs(dts_file: &PathBuf) -> Result<String> {
-    let mut out = String::new();
-
+pub fn dts2rs(dts_file: &PathBuf) -> TokenStream {
     let module = extract_module(dts_file);
+
+    let mut token_streams = Vec::new();
+
+    // processed later
+    // let mut leftovers = Vec::new();
 
     for b in module.body {
         let b = b.as_module_decl().unwrap();
@@ -261,7 +330,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> Result<String> {
         let decl = &b.decl;
 
         //dbg!(&decl);
-        match decl {
+        let token_stream = match decl {
             swc_ecma_ast::Decl::TsInterface(interface) => {
                 //let name = interface.id.sym.as_ref();
                 //match name {
@@ -269,15 +338,13 @@ pub fn dts2rs(dts_file: &PathBuf) -> Result<String> {
                 //    _ => {}
                 //}
 
-                writeln!(out, "// ts interface")?;
-
-                let rstruct = interface2struct(interface).unwrap();
-
-                write!(out, "{}", rstruct)?;
+                let rstruct = interface2struct(interface);
+                quote! {
+                    // ts interface
+                    #rstruct
+                }
             }
             swc_ecma_ast::Decl::TsTypeAlias(talias) => {
-                writeln!(out, "// ts type alias")?;
-
                 let a = talias.id.sym.as_ref();
 
                 // lazy skip
@@ -289,36 +356,39 @@ pub fn dts2rs(dts_file: &PathBuf) -> Result<String> {
                     }
                     _ => {}
                 }
+                let ident = id!(a);
 
                 let typ = &talias.type_ann;
-                match &**typ {
+                match typ.as_ref() {
                     swc_ecma_ast::TsType::TsTypeRef(tref) => {
-                        writeln!(
-                            out,
-                            "pub type {a} = {};",
-                            &tref.type_name.as_ident().unwrap().sym
-                        )?;
+                        let rhs = &tref.type_name.as_ident().unwrap().sym.to_string();
+                        let rhs = id!(rhs);
+                        quote! {
+                            // ts type alias of another type
+                            pub type #ident = #rhs;
+                        }
                     }
                     swc_ecma_ast::TsType::TsUnionOrIntersectionType(tuoi) => {
                         let tunion = tuoi.as_ts_union_type().unwrap();
 
-                        let renum = tunion2enum(a, tunion).unwrap();
-                        writeln!(out, "{}", renum)?;
+                        let renum = tunion2enum(a, tunion).into_token_stream();
+                        quote! {
+                            // ts type alias of union
+                            #renum
+                        }
                     }
-                    swc_ecma_ast::TsType::TsKeywordType(_tkey) => {
+                    swc_ecma_ast::TsType::TsKeywordType(..)
+                    | swc_ecma_ast::TsType::TsArrayType(..) => {
                         // export type Hoge = number;
-                        let (_, typ) = ts_type_to_rs(typ);
-                        writeln!(out, "pub type {a} = {};", typ.to_string())?;
-                    }
-                    swc_ecma_ast::TsType::TsArrayType(tarray) => {
-                        // export type BranchProtectionRuleArray = string[];
-                        //dbg!(tarray);
-                        let (_, typ) = ts_type_to_rs(&tarray.elem_type);
-                        writeln!(out, "pub type {a} = Vec<{}>;", typ.to_string())?;
+                        let typ = ts_type_to_rs(typ).1;
+                        quote! {
+                            pub type #ident = #typ;
+                        }
                     }
                     swc_ecma_ast::TsType::TsTypeOperator(_toperator) => {
                         // export type WebhookEventName = keyof EventPayloadMap;
                         //dbg!(toperator);
+                        continue;
                     }
                     _ => {
                         dbg!(typ);
@@ -327,12 +397,12 @@ pub fn dts2rs(dts_file: &PathBuf) -> Result<String> {
                 }
             }
             _ => unreachable!(),
-        }
-
+        };
+        token_streams.push(token_stream);
         //println!("{}", b.is_export_decl());
     }
 
-    Ok(out)
+    token_streams.into_iter().collect()
 }
 
 fn extract_module(dts_file: &PathBuf) -> swc_ecma_ast::Module {
@@ -365,6 +435,19 @@ fn extract_module(dts_file: &PathBuf) -> swc_ecma_ast::Module {
         .expect("Failed to parse module.")
 }
 
+fn ts_keyword_type_to_rs(typ: &swc_ecma_ast::TsKeywordType) -> RustType {
+    use swc_ecma_ast::TsKeywordTypeKind;
+    match typ.kind {
+        TsKeywordTypeKind::TsStringKeyword => RustType::String,
+        TsKeywordTypeKind::TsNumberKeyword => RustType::Number,
+        TsKeywordTypeKind::TsBooleanKeyword => RustType::Boolean,
+        TsKeywordTypeKind::TsNullKeyword => RustType::Empty,
+        _ => {
+            unimplemented!("{:?}", typ.kind);
+        }
+    }
+}
+
 fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
     use swc_ecma_ast::TsKeywordTypeKind;
     use swc_ecma_ast::TsUnionOrIntersectionType;
@@ -372,19 +455,13 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
     let mut nullable = false;
 
     let typ = match typ {
-        swc_ecma_ast::TsType::TsKeywordType(tk) => match tk.kind {
-            TsKeywordTypeKind::TsStringKeyword => RustType::String,
-            TsKeywordTypeKind::TsNumberKeyword => RustType::Number,
-            TsKeywordTypeKind::TsBooleanKeyword => RustType::Boolean,
-            TsKeywordTypeKind::TsNullKeyword => {
+        swc_ecma_ast::TsType::TsKeywordType(tk) => {
+            let t = ts_keyword_type_to_rs(tk);
+            if let RustType::Empty = &t {
                 nullable = true;
-                RustType::Empty
             }
-            _ => {
-                dbg!(tk.kind);
-                todo!()
-            }
-        },
+            t
+        }
         swc_ecma_ast::TsType::TsUnionOrIntersectionType(tsuoi) => {
             match tsuoi {
                 TsUnionOrIntersectionType::TsUnionType(tunion) => {
@@ -437,7 +514,7 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
                     RustType::UnknownUnion
                 }
                 TsUnionOrIntersectionType::TsIntersectionType(tints) => {
-                    dbg!(tints);
+                    // dbg!(tints);
                     //todo!();
                     RustType::UnknownIntersection
                 }
@@ -454,7 +531,7 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
         }
         swc_ecma_ast::TsType::TsTypeLit(tlit) => {
             for m in &tlit.members {
-                dbg!(m);
+                // dbg!(m);
             }
             RustType::Unknown
         }

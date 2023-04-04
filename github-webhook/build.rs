@@ -66,7 +66,7 @@ pub fn run_transform(
     let body = reqwest::blocking::get(url)?.text()?;
     std::fs::write(&dts_file, body)?;
 
-    let rs = dts2rs(&dts_file).unwrap();
+    let rs = dts2rs(&dts_file);
 
     let mut writer = BufWriter::new(File::create(&rs_file)?);
     write!(writer, "{rs}")?;
