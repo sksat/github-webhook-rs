@@ -8,7 +8,13 @@ repository = "https://github.com/sksat/github-webhook-rs"
 authors = ["sksat <sksat@sksat.net>"]
 license = "MIT"
 
+[features]
+default = ["serde"]
+serde = []
+
 [dependencies]
+proc-macro2 = "1.0.54"
+quote = "1.0.26"
 anyhow = "1.0.70"
 structopt = "0.3.26"
 swc_common = { version = "0.31.4", features = ["tty-emitter"]}
