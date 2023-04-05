@@ -65,27 +65,26 @@ impl RustContainerAttrs {
             RustContainerAttrs::With(v) => v.push(a),
         }
     }
-}
-
-impl ToTokens for RustContainerAttrs {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.extend(
-            match self {
-                RustContainerAttrs::Default => quote! {
-                    #[derive(Debug, Deserialize)]
-                },
-                RustContainerAttrs::With(w) => quote! {
-                    #[derive(Debug, Deserialize)]
-                    #(#w)*
-                },
-            }
-            .into_iter(),
-        )
+    fn is_tagged_enum(&self) -> bool {
+        match self {
+            RustContainerAttrs::Default => false,
+            RustContainerAttrs::With(attrs) => attrs
+                .iter()
+                .filter_map(|attr| attr.as_serde())
+                .any(SerdeContainerAttr::is_tag),
+        }
     }
 }
 
 pub enum RustStructAttr {
     Serde(SerdeContainerAttr),
+}
+
+impl RustStructAttr {
+    pub fn as_serde(&self) -> Option<&SerdeContainerAttr> {
+        let Self::Serde(v) = self;
+        Some(v)
+    }
 }
 
 impl ToTokens for RustStructAttr {
@@ -104,6 +103,16 @@ impl ToTokens for RustStructAttr {
 pub enum SerdeContainerAttr {
     RenameAll(RenameRule),
     Tag(String),
+}
+
+impl SerdeContainerAttr {
+    /// Returns `true` if the serde container attr is [`Tag`].
+    ///
+    /// [`Tag`]: SerdeContainerAttr::Tag
+    #[must_use]
+    pub fn is_tag(&self) -> bool {
+        matches!(self, Self::Tag(..))
+    }
 }
 
 impl ToTokens for SerdeContainerAttr {
@@ -193,6 +202,14 @@ impl RustEnumMember {
             }
             _ => unreachable!("do not call with this"),
         }
+    }
+
+    /// Returns `true` if the rust enum member is [`Nullary`].
+    ///
+    /// [`Nullary`]: RustEnumMember::Nullary
+    #[must_use]
+    pub fn is_nullary(&self) -> bool {
+        matches!(self, Self::Nullary(..))
     }
 }
 
@@ -288,10 +305,21 @@ impl ToTokens for RustStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self { name, member, attr } = self;
         let name = id!(name);
+        tokens.extend(
+            match attr {
+                RustContainerAttrs::Default => quote! {
+                    #[derive(Debug, Deserialize)]
+                },
+                RustContainerAttrs::With(w) => quote! {
+                    #[derive(Debug, Deserialize)]
+                    #(#w)*
+                },
+            }
+            .into_iter(),
+        );
 
         tokens.extend(
             quote! {
-                #attr
                 pub struct #name {
                     #(#member)*
                 }
@@ -305,10 +333,32 @@ impl ToTokens for RustEnum {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self { name, member, attr } = self;
         let name = id!(name);
+        tokens.extend(
+            if attr.is_tagged_enum() || member.iter().all(|m| m.is_nullary()) {
+                quote! {
+                    #[derive(Debug, Deserialize)]
+                }
+            } else {
+                quote! {
+                    #[derive(Debug)]
+                }
+            }
+            .into_iter(),
+        );
+        match attr {
+            RustContainerAttrs::Default => (),
+            RustContainerAttrs::With(w) => {
+                tokens.extend(
+                    quote! {
+                        #(#w)*
+                    }
+                    .into_iter(),
+                );
+            }
+        }
 
         tokens.extend(
             quote! {
-                #attr
                 pub enum #name {
                     #(#member)*
                 }
