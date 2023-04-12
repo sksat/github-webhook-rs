@@ -1,3 +1,4 @@
+use once_cell::sync::Lazy;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -53,7 +54,9 @@ pub struct RustStruct {
     pub member: Vec<RustStructMember>,
 }
 
+#[derive(Default)]
 pub enum RustContainerAttrs {
+    #[default]
     Default,
     With(Vec<RustStructAttr>),
 }
@@ -73,6 +76,19 @@ impl RustContainerAttrs {
                 .filter_map(|attr| attr.as_serde())
                 .any(SerdeContainerAttr::is_tag),
         }
+    }
+}
+
+impl ToTokens for RustFieldAttr {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.extend(
+            match self {
+                RustFieldAttr::Serde(s) => quote! {
+                    #[serde(#s)]
+                },
+            }
+            .into_iter(),
+        )
     }
 }
 
@@ -138,6 +154,19 @@ pub enum SerdeFieldAttr {
     Rename(String),
 }
 
+impl ToTokens for SerdeFieldAttr {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.extend(
+            match self {
+                SerdeFieldAttr::Rename(s) => quote! {
+                    rename = #s
+                },
+            }
+            .into_iter(),
+        )
+    }
+}
+
 pub enum SerdeVariantAttr {
     Rename(String),
     Borrow {
@@ -199,9 +228,30 @@ pub struct RustEnum {
 }
 
 pub struct RustStructMember {
+    pub attr: RustFieldAttrs,
     pub name: String,
     pub ty: RustMemberType,
     pub comment: Option<String>,
+}
+
+#[derive(Default)]
+pub enum RustFieldAttrs {
+    #[default]
+    Default,
+    With(Vec<RustFieldAttr>),
+}
+
+impl RustFieldAttrs {
+    fn add_attr(&mut self, a: RustFieldAttr) {
+        match self {
+            Self::Default => *self = Self::With(vec![a]),
+            Self::With(v) => v.push(a),
+        }
+    }
+}
+
+pub enum RustFieldAttr {
+    Serde(SerdeFieldAttr),
 }
 
 pub struct RustMemberType {
@@ -310,7 +360,12 @@ impl ToTokens for RustMemberType {
 
 impl ToTokens for RustStructMember {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let Self { name, ty, comment } = self;
+        let Self {
+            attr,
+            name,
+            ty,
+            comment,
+        } = self;
         let name = id!(name);
 
         tokens.extend(
@@ -318,13 +373,24 @@ impl ToTokens for RustStructMember {
                 quote! {
                     /* unknown type */
                 }
-            } else if let Some(comment) = comment {
-                quote! {
-                    #[doc=#comment]
-                    pub #name: #ty,
-                }
             } else {
+                let mut attrs = TokenStream::new();
+                if let Some(comment) = comment {
+                    attrs = quote! {
+                        #[doc=#comment]
+                    }
+                }
+                match attr {
+                    RustFieldAttrs::Default => (),
+                    RustFieldAttrs::With(w) => {
+                        attrs = quote! {
+                            #attrs
+                            #(#w)*
+                        }
+                    }
+                }
                 quote! {
+                    #attrs
                     pub #name: #ty,
                 }
             }
@@ -443,7 +509,7 @@ fn interface2struct(
         }
         //dbg!(prop);
 
-        let pkey: &str = match &*prop.key {
+        let mut pkey: &str = match &*prop.key {
             swc_ecma_ast::Expr::Ident(pkey) => &pkey.sym,
             swc_ecma_ast::Expr::Lit(pkey) => match pkey {
                 swc_ecma_ast::Lit::Str(_pkey) => {
@@ -464,12 +530,17 @@ fn interface2struct(
         //    "+1"
         //};
 
+        let mut attr = RustFieldAttrs::Default;
+
         // avoid conflict to Rust reserved word
-        let pkey = match pkey {
-            "type" => "type_",
-            "ref" => "ref_",
-            _ => pkey,
-        };
+        static RENAME_RULES: Lazy<HashMap<&str, &str>> =
+            Lazy::new(|| HashMap::from_iter([("type", "type_"), ("ref", "ref_")]));
+        if let Some(renamed) = RENAME_RULES.get(pkey) {
+            attr.add_attr(RustFieldAttr::Serde(SerdeFieldAttr::Rename(
+                pkey.to_owned(),
+            )));
+            pkey = renamed;
+        }
 
         let ptype = &prop.type_ann.as_ref().unwrap().type_ann;
         let (is_optional, ty) = ts_type_to_rs(ptype);
@@ -492,6 +563,7 @@ fn interface2struct(
         rmember.push(RustStructMember {
             ty: RustMemberType { ty, is_optional },
             name: pkey.to_string(),
+            attr,
             comment: None,
         });
     }
