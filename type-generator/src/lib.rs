@@ -119,7 +119,12 @@ impl ToTokens for SerdeContainerAttr {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         tokens.extend(
             match self {
-                SerdeContainerAttr::RenameAll(_) => todo!(),
+                SerdeContainerAttr::RenameAll(r) => {
+                    let r = r.to_string();
+                    quote! {
+                        rename_all = #r
+                    }
+                }
                 SerdeContainerAttr::Tag(name) => quote! {
                     tag = #name
                 },
@@ -145,6 +150,35 @@ pub enum RenameRule {
     PascalCase,
     SnakeCase,
     ScreamingSnakeCase,
+}
+
+impl RenameRule {
+    /// Returns `true` if the rename rule is [`PascalCase`].
+    ///
+    /// [`PascalCase`]: RenameRule::PascalCase
+    #[must_use]
+    pub fn is_pascal_case(&self) -> bool {
+        matches!(self, Self::PascalCase)
+    }
+    fn convert_to_pascal(&self, s: &mut String) {
+        match self {
+            RenameRule::PascalCase => (),
+            RenameRule::SnakeCase | RenameRule::ScreamingSnakeCase => {
+                *s = s
+                    .split('_')
+                    .map(|term| {
+                        let mut term = term.to_ascii_lowercase();
+                        if let Some(c) = term.chars().next() {
+                            let capital_ch = c.to_ascii_uppercase();
+                            term.replace_range(..1, &capital_ch.to_string());
+                        }
+                        term
+                    })
+                    .collect::<Vec<_>>()
+                    .concat();
+            }
+        }
+    }
 }
 
 impl ToString for RenameRule {
@@ -211,9 +245,7 @@ impl RustEnumMember {
     pub fn is_nullary(&self) -> bool {
         matches!(self, Self::Nullary(..))
     }
-}
 
-impl RustEnumMember {
     pub fn as_unary(&self) -> Option<&String> {
         if let Self::Unary(v) = self {
             Some(v)
@@ -627,6 +659,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> TokenStream {
 
     for segment in &mut segments {
         adapt_internal_tag(segment, &lkm);
+        adapt_rename_all(segment);
     }
 
     segments
@@ -660,6 +693,100 @@ fn adapt_internal_tag(segment: &mut RustSegment, lkm: &LiteralKeyMap) -> Option<
         }
         re.attr
             .add_attr(RustStructAttr::Serde(SerdeContainerAttr::Tag(tag_name)));
+    }
+    Some(())
+}
+
+fn adapt_rename_all(segment: &mut RustSegment) -> Option<()> {
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    enum CaseConvention {
+        Lower,
+        Upper,
+        Snake,
+        Pascal,
+        ScreamingSnake,
+    }
+    use CaseConvention::*;
+    /// expect input follows one of above case
+    fn detect_case(s: &str) -> CaseConvention {
+        if s.starts_with(char::is_uppercase) {
+            if s.contains('_') {
+                ScreamingSnake
+            } else if s.chars().all(char::is_uppercase) {
+                Upper
+            } else {
+                Pascal
+            }
+        } else if s.contains('_') {
+            Snake
+        } else {
+            Lower
+        }
+    }
+    impl CaseConvention {
+        fn cast(&mut self, other: Self) -> Option<()> {
+            if self == &other {
+                return Some(());
+            }
+            match (&self, &other) {
+                (Lower, Snake) | (Upper, ScreamingSnake) => {
+                    *self = other;
+                }
+                (Snake, Lower) | (ScreamingSnake, Upper) => {
+                    // do nothing
+                }
+                _ => None?,
+            }
+            Some(())
+        }
+        fn into_rename_rule(self) -> RenameRule {
+            match self {
+                Lower | Snake => RenameRule::SnakeCase,
+                Pascal => RenameRule::PascalCase,
+                Upper | ScreamingSnake => RenameRule::ScreamingSnakeCase,
+            }
+        }
+    }
+    if let RustSegment::Enum(re) = segment {
+        let mut conv: Option<CaseConvention> = None;
+        for memb in &re.member {
+            let s = match memb {
+                RustEnumMember::Nullary(v) => v,
+                RustEnumMember::Unary(v) => v,
+                RustEnumMember::UnaryNamed { variant_name, .. } => variant_name,
+            };
+            match conv.as_mut() {
+                Some(conv) => {
+                    let new = detect_case(s);
+                    conv.cast(new)?
+                }
+                None => {
+                    conv = Some(detect_case(s));
+                }
+            };
+        }
+        let rr = conv?.into_rename_rule();
+        if rr.is_pascal_case() {
+            return None;
+        }
+        for memb in &mut re.member {
+            match memb {
+                RustEnumMember::Unary(v) => {
+                    let type_name = v.to_owned();
+                    rr.convert_to_pascal(v);
+                    *memb = RustEnumMember::UnaryNamed {
+                        variant_name: v.to_owned(),
+                        type_name,
+                    };
+                }
+                RustEnumMember::Nullary(variant_name)
+                | RustEnumMember::UnaryNamed { variant_name, .. } => {
+                    rr.convert_to_pascal(variant_name);
+                }
+            };
+        }
+        re.attr
+            .add_attr(RustStructAttr::Serde(SerdeContainerAttr::RenameAll(rr)));
     }
     Some(())
 }
