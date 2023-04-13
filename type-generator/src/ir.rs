@@ -3,7 +3,7 @@ use std::collections::HashMap;
 pub enum RustSegment {
     Struct(RustStruct),
     Enum(RustEnum),
-    Alias(proc_macro2::Ident, RustType),
+    Alias(RustAlias),
 }
 
 pub enum RustType {
@@ -35,6 +35,7 @@ impl RustType {
 pub struct RustStruct {
     pub attr: RustContainerAttrs,
     pub name: String,
+    pub is_borrowed: bool,
     pub member: Vec<RustStructMember>,
 }
 
@@ -151,6 +152,7 @@ impl ToString for RenameRule {
 pub struct RustEnum {
     pub attr: RustContainerAttrs,
     pub name: String,
+    pub is_borrowed: bool,
     pub member: Vec<RustEnumMember>,
 }
 
@@ -230,6 +232,12 @@ impl RustEnumMember {
             None
         }
     }
+}
+
+pub struct RustAlias {
+    pub ident: proc_macro2::Ident,
+    pub is_borrowed: bool,
+    pub ty: RustType,
 }
 
 pub type LiteralKeyMap = HashMap<String, HashMap<String, String>>;

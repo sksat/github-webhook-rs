@@ -18,7 +18,11 @@ use swc_common::{
 
 use swc_ecma_parser::{lexer::Lexer, Capturing, Parser, StringInput, Syntax};
 
-use ir::*;
+use ir::{
+    LiteralKeyMap, RustAlias, RustContainerAttrs, RustEnum, RustEnumMember, RustFieldAttr,
+    RustFieldAttrs, RustMemberType, RustSegment, RustStruct, RustStructMember, RustType,
+    SerdeFieldAttr,
+};
 
 macro_rules! id {
     ($($tt:tt)*) => {
@@ -102,6 +106,7 @@ fn interface2struct(
     RustStruct {
         attr: RustContainerAttrs::Default,
         name,
+        is_borrowed: false,
         member: rmember,
     }
 }
@@ -160,6 +165,7 @@ fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
     RustEnum {
         attr: RustContainerAttrs::Default,
         name: name.to_string(),
+        is_borrowed: false,
         member,
     }
 }
@@ -209,7 +215,11 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                     swc_ecma_ast::TsType::TsTypeRef(tref) => {
                         let rhs = tref.type_name.as_ident().unwrap().sym.as_ref();
                         let rhs = rhs.to_owned();
-                        RustSegment::Alias(ident, RustType::Custom(rhs))
+                        RustSegment::Alias(RustAlias {
+                            ident,
+                            is_borrowed: false,
+                            ty: RustType::Custom(rhs),
+                        })
                     }
                     swc_ecma_ast::TsType::TsUnionOrIntersectionType(tuoi) => {
                         let tunion = tuoi.as_ts_union_type().unwrap();
@@ -221,7 +231,11 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                     | swc_ecma_ast::TsType::TsArrayType(..) => {
                         // export type Hoge = number;
                         let typ = ts_type_to_rs(typ).1;
-                        RustSegment::Alias(ident, typ)
+                        RustSegment::Alias(RustAlias {
+                            ident,
+                            is_borrowed: false,
+                            ty: typ,
+                        })
                     }
                     swc_ecma_ast::TsType::TsTypeOperator(_toperator) => {
                         // export type WebhookEventName = keyof EventPayloadMap;
