@@ -54,8 +54,8 @@ pub fn adapt_rename_all(segment: &mut RustSegment) -> Option<()> {
         let mut conv: Option<CaseConvention> = None;
         for memb in &re.member {
             let s = match memb {
-                RustEnumMember::Nullary(v) => v,
-                RustEnumMember::Unary(v) => v,
+                RustEnumMember::Nullary(v) => &v.name,
+                RustEnumMember::Unary(v) => &v.name,
                 RustEnumMember::UnaryNamed { variant_name, .. } => variant_name,
             };
             match conv.as_mut() {
@@ -76,14 +76,16 @@ pub fn adapt_rename_all(segment: &mut RustSegment) -> Option<()> {
             match memb {
                 RustEnumMember::Unary(v) => {
                     let type_name = v.to_owned();
-                    rr.convert_to_pascal(v);
+                    rr.convert_to_pascal(&mut v.name);
                     *memb = RustEnumMember::UnaryNamed {
-                        variant_name: v.to_owned(),
+                        variant_name: v.name.to_owned(),
                         type_name,
                     };
                 }
-                RustEnumMember::Nullary(variant_name)
-                | RustEnumMember::UnaryNamed { variant_name, .. } => {
+                RustEnumMember::Nullary(variant_name) => {
+                    rr.convert_to_pascal(&mut variant_name.name);
+                }
+                RustEnumMember::UnaryNamed { variant_name, .. } => {
                     rr.convert_to_pascal(variant_name);
                 }
             };

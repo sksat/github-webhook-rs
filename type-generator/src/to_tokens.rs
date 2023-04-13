@@ -4,7 +4,7 @@ use quote::{quote, ToTokens, TokenStreamExt};
 use crate::ir::{
     RustAlias, RustContainerAttrs, RustEnum, RustEnumMember, RustFieldAttr, RustFieldAttrs,
     RustMemberType, RustSegment, RustStruct, RustStructAttr, RustStructMember, RustType,
-    SerdeContainerAttr, SerdeFieldAttr,
+    SerdeContainerAttr, SerdeFieldAttr, TypeName,
 };
 
 macro_rules! id {
@@ -20,6 +20,24 @@ impl RustSegment {
             RustSegment::Enum(e) => e.into_token_stream(),
             RustSegment::Alias(a) => a.into_token_stream(),
         }
+    }
+}
+
+impl ToTokens for TypeName {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let Self { name, is_borrowed } = self;
+        let name = id!(name);
+        let p = if *is_borrowed {
+            quote! { <'a> }
+        } else {
+            quote!()
+        };
+        tokens.extend(
+            quote! {
+                #name #p
+            }
+            .into_iter(),
+        )
     }
 }
 
@@ -101,7 +119,7 @@ impl ToTokens for RustType {
             }
             RustType::Number => "usize",
             RustType::Boolean => "bool",
-            RustType::Custom { name, is_borrowed } => {
+            RustType::Custom(TypeName { name, is_borrowed }) => {
                 let name = id!(name);
                 let p = if *is_borrowed {
                     quote! { <'a> }
@@ -290,10 +308,11 @@ impl ToTokens for RustEnum {
 impl ToTokens for RustAlias {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self {
-            ident,
+            name,
             ty: typ,
             is_borrowed,
         } = self;
+        let ident = id!(name);
         let p = if *is_borrowed {
             quote! { <'a> }
         } else {
@@ -313,19 +332,18 @@ impl ToTokens for RustEnumMember {
         tokens.extend(
             match self {
                 RustEnumMember::Nullary(v) => {
-                    let v = id!(v);
+                    let v = id!(&v.name);
                     quote!(#v,)
                 }
                 RustEnumMember::Unary(a) => {
-                    let a = id!(a);
-                    quote!(#a(#a),)
+                    let n = id!(&a.name);
+                    quote!(#n(#a),)
                 }
                 RustEnumMember::UnaryNamed {
                     variant_name,
                     type_name,
                 } => {
                     let variant_name = id!(variant_name);
-                    let type_name = id!(type_name);
                     quote!(#variant_name(#type_name),)
                 }
             }

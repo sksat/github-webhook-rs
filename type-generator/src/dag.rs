@@ -3,14 +3,14 @@ use std::{
     hash::Hash,
 };
 
-struct DAG<Node> {
+struct DirectedAcyclicGraph<Node> {
     nodes: HashSet<Node>,
     edges: HashMap<Node, Vec<Node>>,
 }
 
-impl<Node: Copy + Hash + Eq> DAG<Node> {
+impl<Node: Copy + Hash + Eq> DirectedAcyclicGraph<Node> {
     fn new() -> Self {
-        DAG {
+        DirectedAcyclicGraph {
             nodes: HashSet::new(),
             edges: HashMap::new(),
         }
@@ -62,12 +62,14 @@ impl<Node: Copy + Hash + Eq> DAG<Node> {
 }
 
 pub struct CoDAG<Node> {
-    dag: DAG<Node>,
+    dag: DirectedAcyclicGraph<Node>,
 }
 
 impl<Node: Copy + Hash + Eq> CoDAG<Node> {
     pub fn new() -> Self {
-        Self { dag: DAG::new() }
+        Self {
+            dag: DirectedAcyclicGraph::new(),
+        }
     }
 
     pub fn add_edge(&mut self, from: Node, to: Node) {
@@ -79,13 +81,19 @@ impl<Node: Copy + Hash + Eq> CoDAG<Node> {
     }
 }
 
+impl<Node: Copy + Hash + Eq> Default for CoDAG<Node> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_topo_sort() {
-        let mut dag = DAG::new();
+        let mut dag = DirectedAcyclicGraph::new();
         dag.add_edge("A", "B");
         dag.add_edge("A", "C");
         dag.add_edge("B", "D");

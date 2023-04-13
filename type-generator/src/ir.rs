@@ -1,16 +1,35 @@
 use std::collections::HashMap;
 
+use crate::dag::CoDAG;
+
 pub enum RustSegment {
     Struct(RustStruct),
     Enum(RustEnum),
     Alias(RustAlias),
 }
 
+impl RustSegment {
+    pub fn name(&self) -> &str {
+        match self {
+            RustSegment::Struct(s) => &s.name,
+            RustSegment::Enum(e) => &e.name,
+            RustSegment::Alias(a) => &a.name,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeName {
+    pub name: String,
+    pub is_borrowed: bool,
+}
+
+#[derive(Debug)]
 pub enum RustType {
     String { is_borrowed: bool },
     Number,
     Boolean,
-    Custom { name: String, is_borrowed: bool },
+    Custom(TypeName),
     Array(Box<RustType>),
     Empty, // ()
     Unknown,
@@ -29,6 +48,22 @@ impl RustType {
             RustType::Array(t) => t.is_unknown(),
             _ => false,
         }
+    }
+
+    pub fn as_custom(&self) -> Option<&TypeName> {
+        if let Self::Custom(t) = self {
+            Some(t)
+        } else {
+            None
+        }
+    }
+
+    /// Returns `true` if the rust type is [`String`].
+    ///
+    /// [`String`]: RustType::String
+    #[must_use]
+    pub fn is_string(&self) -> bool {
+        matches!(self, Self::String { .. })
     }
 }
 
@@ -195,12 +230,12 @@ impl RustMemberType {
 }
 
 pub enum RustEnumMember {
-    Nullary(String),
+    Nullary(TypeName),
     /// has the same ident. this is unary
-    Unary(String),
+    Unary(TypeName),
     UnaryNamed {
         variant_name: String,
-        type_name: String,
+        type_name: TypeName,
     },
 }
 
@@ -225,19 +260,71 @@ impl RustEnumMember {
         matches!(self, Self::Nullary(..))
     }
 
-    pub fn as_unary(&self) -> Option<&String> {
+    pub fn as_unary(&self) -> Option<&TypeName> {
         if let Self::Unary(v) = self {
             Some(v)
         } else {
             None
         }
     }
+
+    pub fn type_name(&self) -> &TypeName {
+        match self {
+            RustEnumMember::Nullary(t) => t,
+            RustEnumMember::Unary(t) => t,
+            RustEnumMember::UnaryNamed { type_name, .. } => type_name,
+        }
+    }
+
+    pub fn type_name_mut(&mut self) -> &mut TypeName {
+        match self {
+            RustEnumMember::Nullary(t) => t,
+            RustEnumMember::Unary(t) => t,
+            RustEnumMember::UnaryNamed { type_name, .. } => type_name,
+        }
+    }
 }
 
 pub struct RustAlias {
-    pub ident: proc_macro2::Ident,
+    pub name: String,
     pub is_borrowed: bool,
     pub ty: RustType,
 }
 
 pub type LiteralKeyMap = HashMap<String, HashMap<String, String>>;
+
+pub fn type_deps(segments: &[RustSegment]) -> CoDAG<usize> {
+    let index_map: HashMap<_, _> = segments
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (s.name(), i))
+        .collect();
+    let mut type_deps = CoDAG::new();
+    for (i, segment) in segments.iter().enumerate() {
+        let children: Vec<_> = match segment {
+            RustSegment::Struct(s) => s
+                .member
+                .iter()
+                .flat_map(|m| m.ty.ty.as_custom())
+                .map(|t| t.name.as_str())
+                .collect(),
+            RustSegment::Enum(e) => e
+                .member
+                .iter()
+                .map(|m| m.type_name().name.as_str())
+                .collect(),
+            RustSegment::Alias(a) => {
+                a.ty.as_custom()
+                    .map(|t| t.name.as_str())
+                    .into_iter()
+                    .collect()
+            }
+        };
+        for child in children {
+            if let Some(to) = index_map.get(child) {
+                type_deps.add_edge(i, *to);
+            }
+        }
+    }
+    type_deps
+}

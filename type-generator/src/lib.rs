@@ -19,16 +19,10 @@ use swc_common::{
 use swc_ecma_parser::{lexer::Lexer, Capturing, Parser, StringInput, Syntax};
 
 use ir::{
-    LiteralKeyMap, RustAlias, RustContainerAttrs, RustEnum, RustEnumMember, RustFieldAttr,
-    RustFieldAttrs, RustMemberType, RustSegment, RustStruct, RustStructMember, RustType,
-    SerdeFieldAttr,
+    type_deps, LiteralKeyMap, RustAlias, RustContainerAttrs, RustEnum, RustEnumMember,
+    RustFieldAttr, RustFieldAttrs, RustMemberType, RustSegment, RustStruct, RustStructMember,
+    RustType, SerdeFieldAttr, TypeName,
 };
-
-macro_rules! id {
-    ($($tt:tt)*) => {
-        proc_macro2::Ident::new($($tt)*, proc_macro2::Span::call_site())
-    };
-}
 
 fn interface2struct(
     interface: &swc_ecma_ast::TsInterfaceDecl,
@@ -119,7 +113,10 @@ fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
                 // export type Hoge = Fuga | Fuge;
                 let i = &tref.type_name.as_ident().unwrap();
                 let sym = i.sym.to_string();
-                member.push(RustEnumMember::Unary(sym));
+                member.push(RustEnumMember::Unary(TypeName {
+                    name: sym,
+                    is_borrowed: false,
+                }));
                 //write!(out, "{}({})", &i.sym, &i.sym)?;
             }
             swc_ecma_ast::TsType::TsLitType(tlit) => {
@@ -130,7 +127,10 @@ fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
                     _ => todo!(),
                 };
                 //write!(out, "{}", s)?;
-                member.push(RustEnumMember::Nullary(s));
+                member.push(RustEnumMember::Nullary(TypeName {
+                    name: s,
+                    is_borrowed: false,
+                }));
             }
             swc_ecma_ast::TsType::TsArrayType(_tarray) => {
                 // export WebhookEvents = | ( | "a" | "b" | "c" )[] | ["*"];
@@ -197,10 +197,10 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                 RustSegment::Struct(rstruct)
             }
             swc_ecma_ast::Decl::TsTypeAlias(talias) => {
-                let a = talias.id.sym.as_ref();
+                let ident = talias.id.sym.as_ref();
 
                 // lazy skip
-                match a {
+                match ident {
                     "WebhookEvents"
                     | "PullRequestReviewRequestRemovedEvent"
                     | "PullRequestReviewRequestedEvent" => {
@@ -208,7 +208,6 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                     }
                     _ => {}
                 }
-                let ident = id!(a);
 
                 let typ = &talias.type_ann;
                 match typ.as_ref() {
@@ -216,18 +215,18 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                         let rhs = tref.type_name.as_ident().unwrap().sym.as_ref();
                         let rhs = rhs.to_owned();
                         RustSegment::Alias(RustAlias {
-                            ident,
+                            name: ident.to_owned(),
                             is_borrowed: false,
-                            ty: RustType::Custom {
+                            ty: RustType::Custom(TypeName {
                                 name: rhs,
                                 is_borrowed: false,
-                            },
+                            }),
                         })
                     }
                     swc_ecma_ast::TsType::TsUnionOrIntersectionType(tuoi) => {
                         let tunion = tuoi.as_ts_union_type().unwrap();
 
-                        let renum = tunion2enum(a, tunion);
+                        let renum = tunion2enum(ident, tunion);
                         RustSegment::Enum(renum)
                     }
                     swc_ecma_ast::TsType::TsKeywordType(..)
@@ -235,7 +234,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                         // export type Hoge = number;
                         let typ = ts_type_to_rs(typ).1;
                         RustSegment::Alias(RustAlias {
-                            ident,
+                            name: ident.to_owned(),
                             is_borrowed: false,
                             ty: typ,
                         })
@@ -261,6 +260,8 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
         transformer::adapt_internal_tag(segment, &lkm);
         transformer::adapt_rename_all(segment);
     }
+    let type_deps = type_deps(&segments);
+    transformer::adapt_borrow(&mut segments, &type_deps);
 
     segments
         .into_iter()
@@ -386,10 +387,10 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
         swc_ecma_ast::TsType::TsLitType(_tslit) => RustType::UnknownLiteral,
         swc_ecma_ast::TsType::TsTypeRef(tref) => {
             let id = tref.type_name.as_ident().unwrap().sym.as_ref();
-            RustType::Custom {
+            RustType::Custom(TypeName {
                 name: id.to_owned(),
                 is_borrowed: false,
-            }
+            })
         }
         swc_ecma_ast::TsType::TsArrayType(tarray) => {
             let (_n, etype) = ts_type_to_rs(&tarray.elem_type);
