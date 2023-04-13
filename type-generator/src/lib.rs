@@ -218,7 +218,10 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                         RustSegment::Alias(RustAlias {
                             ident,
                             is_borrowed: false,
-                            ty: RustType::Custom(rhs),
+                            ty: RustType::Custom {
+                                name: rhs,
+                                is_borrowed: false,
+                            },
                         })
                     }
                     swc_ecma_ast::TsType::TsUnionOrIntersectionType(tuoi) => {
@@ -298,7 +301,7 @@ fn extract_module(dts_file: &PathBuf) -> swc_ecma_ast::Module {
 fn ts_keyword_type_to_rs(typ: &swc_ecma_ast::TsKeywordType) -> RustType {
     use swc_ecma_ast::TsKeywordTypeKind;
     match typ.kind {
-        TsKeywordTypeKind::TsStringKeyword => RustType::String,
+        TsKeywordTypeKind::TsStringKeyword => RustType::String { is_borrowed: false },
         TsKeywordTypeKind::TsNumberKeyword => RustType::Number,
         TsKeywordTypeKind::TsBooleanKeyword => RustType::Boolean,
         TsKeywordTypeKind::TsNullKeyword => RustType::Empty,
@@ -364,7 +367,7 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
                                     .as_ref()
                             })
                             .collect::<Vec<&str>>();
-                        return (nullable, RustType::String);
+                        return (nullable, RustType::String { is_borrowed: false });
                         //TODO: comment strs  // {:?}", strs));
                     }
 
@@ -383,7 +386,10 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
         swc_ecma_ast::TsType::TsLitType(_tslit) => RustType::UnknownLiteral,
         swc_ecma_ast::TsType::TsTypeRef(tref) => {
             let id = tref.type_name.as_ident().unwrap().sym.as_ref();
-            RustType::Custom(id.to_owned())
+            RustType::Custom {
+                name: id.to_owned(),
+                is_borrowed: false,
+            }
         }
         swc_ecma_ast::TsType::TsArrayType(tarray) => {
             let (_n, etype) = ts_type_to_rs(&tarray.elem_type);

@@ -87,14 +87,30 @@ impl ToTokens for SerdeFieldAttr {
 impl ToTokens for RustType {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let s = match self {
-            RustType::String => "String",
+            RustType::String { is_borrowed } => {
+                if *is_borrowed {
+                    tokens.extend(
+                        quote! {
+                            &'a str
+                        }
+                        .into_iter(),
+                    );
+                    return;
+                }
+                "String"
+            }
             RustType::Number => "usize",
             RustType::Boolean => "bool",
-            RustType::Custom(s) => {
-                let s = id!(s);
+            RustType::Custom { name, is_borrowed } => {
+                let name = id!(name);
+                let p = if *is_borrowed {
+                    quote! { <'a> }
+                } else {
+                    quote!()
+                };
                 tokens.extend(
                     quote! {
-                        #s
+                        #name #p
                     }
                     .into_iter(),
                 );

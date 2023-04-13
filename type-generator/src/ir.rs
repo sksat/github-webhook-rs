@@ -7,10 +7,10 @@ pub enum RustSegment {
 }
 
 pub enum RustType {
-    String,
+    String { is_borrowed: bool },
     Number,
     Boolean,
-    Custom(String),
+    Custom { name: String, is_borrowed: bool },
     Array(Box<RustType>),
     Empty, // ()
     Unknown,
