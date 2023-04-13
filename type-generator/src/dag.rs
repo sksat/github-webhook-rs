@@ -1,13 +1,14 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+};
 
-pub type Node<'a> = &'a str;
-
-struct DAG<'a> {
-    nodes: HashSet<Node<'a>>,
-    edges: HashMap<Node<'a>, Vec<Node<'a>>>,
+struct DAG<Node> {
+    nodes: HashSet<Node>,
+    edges: HashMap<Node, Vec<Node>>,
 }
 
-impl<'a> DAG<'a> {
+impl<Node: Copy + Hash + Eq> DAG<Node> {
     fn new() -> Self {
         DAG {
             nodes: HashSet::new(),
@@ -15,13 +16,13 @@ impl<'a> DAG<'a> {
         }
     }
 
-    fn add_edge(&mut self, from: Node<'a>, to: Node<'a>) {
+    fn add_edge(&mut self, from: Node, to: Node) {
         self.nodes.insert(from);
         self.nodes.insert(to);
         self.edges.entry(from).or_insert(Vec::new()).push(to);
     }
 
-    fn topo_sort(&self) -> Vec<Node<'a>> {
+    fn topo_sort(&self) -> Vec<Node> {
         let mut in_degree = HashMap::new();
         for node in self.nodes.iter() {
             in_degree.insert(*node, 0);
@@ -46,7 +47,7 @@ impl<'a> DAG<'a> {
         let mut result = Vec::new();
         while let Some(node) = queue.pop() {
             result.push(node);
-            if let Some(children) = self.edges.get(node) {
+            if let Some(children) = self.edges.get(&node) {
                 for child in children.iter() {
                     let m = in_degree.get_mut(child).unwrap();
                     *m -= 1;
@@ -60,20 +61,20 @@ impl<'a> DAG<'a> {
     }
 }
 
-pub struct CoDAG<'a> {
-    dag: DAG<'a>,
+pub struct CoDAG<Node> {
+    dag: DAG<Node>,
 }
 
-impl<'a> CoDAG<'a> {
+impl<Node: Copy + Hash + Eq> CoDAG<Node> {
     pub fn new() -> Self {
         Self { dag: DAG::new() }
     }
 
-    pub fn add_edge(&mut self, from: Node<'a>, to: Node<'a>) {
+    pub fn add_edge(&mut self, from: Node, to: Node) {
         self.dag.add_edge(to, from);
     }
 
-    pub fn topo_sort(&self) -> Vec<Node<'a>> {
+    pub fn co_topo_sort(&self) -> Vec<Node> {
         self.dag.topo_sort()
     }
 }
@@ -106,7 +107,7 @@ mod tests {
         dag.add_edge("C", "E");
         dag.add_edge("D", "E");
 
-        let topo_order = dag.topo_sort();
+        let topo_order = dag.co_topo_sort();
         assert_eq!(topo_order, vec!["E", "D", "C", "B", "A"]);
     }
 }
