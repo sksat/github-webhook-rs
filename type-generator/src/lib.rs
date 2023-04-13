@@ -511,13 +511,10 @@ fn interface2struct(
 
         let mut pkey: &str = match &*prop.key {
             swc_ecma_ast::Expr::Ident(pkey) => &pkey.sym,
-            swc_ecma_ast::Expr::Lit(pkey) => match pkey {
-                swc_ecma_ast::Lit::Str(_pkey) => {
-                    // TODO: use &pkey.value.as_ref()
-                    continue;
-                }
-                _ => unreachable!(),
-            },
+            swc_ecma_ast::Expr::Lit(swc_ecma_ast::Lit::Str(_pkey)) => {
+                // TODO: use &pkey.value.as_ref()
+                continue;
+            }
             _ => unreachable!(),
         };
         //let pkey = if let Some(pkey) = &prop.key.as_ident() {
@@ -971,7 +968,7 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
 
                     RustType::UnknownUnion
                 }
-                TsUnionOrIntersectionType::TsIntersectionType(tints) => {
+                TsUnionOrIntersectionType::TsIntersectionType(_tints) => {
                     // dbg!(tints);
                     //todo!();
                     RustType::UnknownIntersection
@@ -989,7 +986,7 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
             RustType::Array(Box::new(etype))
         }
         swc_ecma_ast::TsType::TsTypeLit(tlit) => {
-            for m in &tlit.members {
+            for _m in &tlit.members {
                 // dbg!(m);
             }
             RustType::Unknown
