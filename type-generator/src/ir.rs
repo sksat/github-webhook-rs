@@ -58,6 +58,14 @@ impl RustType {
         }
     }
 
+    pub fn get_using(&self) -> Option<&TypeName> {
+        if let Self::Array(t) = self {
+            t.get_using()
+        } else {
+            self.as_custom()
+        }
+    }
+
     /// Returns `true` if the rust type is [`String`].
     ///
     /// [`String`]: RustType::String
@@ -305,7 +313,7 @@ pub fn type_deps(segments: &[RustSegment]) -> CoDAG<usize> {
             RustSegment::Struct(s) => s
                 .member
                 .iter()
-                .flat_map(|m| m.ty.ty.as_custom())
+                .flat_map(|m| m.ty.ty.get_using())
                 .map(|t| t.name.as_str())
                 .collect(),
             RustSegment::Enum(e) => e
@@ -314,7 +322,7 @@ pub fn type_deps(segments: &[RustSegment]) -> CoDAG<usize> {
                 .map(|m| m.type_name().name.as_str())
                 .collect(),
             RustSegment::Alias(a) => {
-                a.ty.as_custom()
+                a.ty.get_using()
                     .map(|t| t.name.as_str())
                     .into_iter()
                     .collect()
