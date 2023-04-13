@@ -154,6 +154,7 @@ impl ToTokens for SerdeContainerAttr {
 
 pub enum SerdeFieldAttr {
     Rename(String),
+    Borrow,
 }
 
 impl ToTokens for SerdeFieldAttr {
@@ -162,6 +163,9 @@ impl ToTokens for SerdeFieldAttr {
             match self {
                 SerdeFieldAttr::Rename(s) => quote! {
                     rename = #s
+                },
+                SerdeFieldAttr::Borrow => quote! {
+                    borrow = "'a"
                 },
             }
             .into_iter(),
