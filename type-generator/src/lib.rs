@@ -256,6 +256,8 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
         //println!("{}", b.is_export_decl());
     }
 
+    transformer::name_types(&mut segments);
+
     for segment in &mut segments {
         transformer::adapt_internal_tag(segment, &lkm);
         transformer::adapt_rename_all(segment);
@@ -331,6 +333,7 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
                 TsUnionOrIntersectionType::TsUnionType(tunion) => {
                     // nullable check
                     let mut types = tunion.types.clone();
+                    // obtain non-null types within union, judging if there is null keyword
                     types.retain(|t| {
                         if let Some(tkey) = t.as_ts_keyword_type() {
                             if tkey.kind == TsKeywordTypeKind::TsNullKeyword {
@@ -349,14 +352,11 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
 
                     // strings check: "Bot" | "User" | "Organization"
                     if types.iter().all(|t| {
-                        if let Some(t) = t.as_ts_lit_type() {
-                            if t.lit.is_str() {
-                                return true;
-                            }
-                        }
-                        false
+                        t.as_ts_lit_type()
+                            .map(|t| t.lit.is_str())
+                            .unwrap_or_default()
                     }) {
-                        let _strs = types
+                        let mut variants: Vec<String> = types
                             .iter()
                             .map(|t| {
                                 t.as_ts_lit_type()
@@ -366,9 +366,11 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
                                     .unwrap()
                                     .value
                                     .as_ref()
+                                    .to_owned()
                             })
-                            .collect::<Vec<&str>>();
-                        return (nullable, RustType::String { is_borrowed: false });
+                            .collect();
+                        variants.sort();
+                        return (nullable, RustType::StringLiteralUnion(variants));
                         //TODO: comment strs  // {:?}", strs));
                     }
 

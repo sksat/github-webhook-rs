@@ -24,6 +24,15 @@ pub struct TypeName {
     pub is_borrowed: bool,
 }
 
+impl TypeName {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            is_borrowed: false,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum RustType {
     String {
@@ -35,6 +44,8 @@ pub enum RustType {
     Array(Box<RustType>),
     /// `()`
     Unit,
+    /// union that consists of string literal
+    StringLiteralUnion(Vec<String>),
     Unknown,
     UnknownLiteral,
     UnknownIntersection,
@@ -200,6 +211,17 @@ pub struct RustEnum {
     pub name: String,
     pub is_borrowed: bool,
     pub member: Vec<RustEnumMember>,
+}
+
+impl RustEnum {
+    pub fn from_members(name: String, members: impl Iterator<Item = RustEnumMember>) -> Self {
+        Self {
+            attr: RustContainerAttrs::Default,
+            name,
+            is_borrowed: false,
+            member: members.collect(),
+        }
+    }
 }
 
 pub struct RustStructMember {
