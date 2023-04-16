@@ -96,20 +96,9 @@ pub struct RustStruct {
     pub member: Vec<RustStructMember>,
 }
 
-#[derive(Default)]
-pub enum RustContainerAttrs {
-    #[default]
-    Default,
-    With(Vec<RustStructAttr>),
-}
+pub type RustContainerAttrs = Attrs<RustStructAttr>;
 
 impl RustContainerAttrs {
-    pub fn add_attr(&mut self, a: RustStructAttr) {
-        match self {
-            RustContainerAttrs::Default => *self = Self::With(vec![a]),
-            RustContainerAttrs::With(v) => v.push(a),
-        }
-    }
     pub fn is_tagged_enum(&self) -> bool {
         match self {
             RustContainerAttrs::Default => false,
@@ -154,10 +143,6 @@ pub enum SerdeFieldAttr {
 
 pub enum SerdeVariantAttr {
     Rename(String),
-    Borrow {
-        /// lifetime parameter without `'`
-        lifetime: String,
-    },
 }
 
 pub enum RenameRule {
@@ -231,15 +216,17 @@ pub struct RustStructMember {
     pub comment: Option<String>,
 }
 
+pub type RustFieldAttrs = Attrs<RustFieldAttr>;
+
 #[derive(Default)]
-pub enum RustFieldAttrs {
+pub enum Attrs<Field> {
     #[default]
     Default,
-    With(Vec<RustFieldAttr>),
+    With(Vec<Field>),
 }
 
-impl RustFieldAttrs {
-    pub fn add_attr(&mut self, a: RustFieldAttr) {
+impl<T> Attrs<T> {
+    pub fn add_attr(&mut self, a: T) {
         match self {
             Self::Default => *self = Self::With(vec![a]),
             Self::With(v) => v.push(a),
@@ -262,7 +249,21 @@ impl RustMemberType {
     }
 }
 
-pub enum RustEnumMember {
+pub struct RustEnumMember {
+    pub attr: RustVariantAttrs,
+    pub kind: RustEnumMemberKind,
+}
+
+impl From<RustEnumMemberKind> for RustEnumMember {
+    fn from(value: RustEnumMemberKind) -> Self {
+        Self {
+            attr: RustVariantAttrs::Default,
+            kind: value,
+        }
+    }
+}
+
+pub enum RustEnumMemberKind {
     Nullary(TypeName),
     /// has the same ident. this is unary
     Unary(TypeName),
@@ -272,10 +273,10 @@ pub enum RustEnumMember {
     },
 }
 
-impl RustEnumMember {
+impl RustEnumMemberKind {
     pub fn name_unary(&mut self, variant_name: String) {
         match self {
-            RustEnumMember::Unary(u) => {
+            RustEnumMemberKind::Unary(u) => {
                 *self = Self::UnaryNamed {
                     variant_name,
                     type_name: u.clone(),
@@ -303,19 +304,25 @@ impl RustEnumMember {
 
     pub fn type_name(&self) -> &TypeName {
         match self {
-            RustEnumMember::Nullary(t) => t,
-            RustEnumMember::Unary(t) => t,
-            RustEnumMember::UnaryNamed { type_name, .. } => type_name,
+            RustEnumMemberKind::Nullary(t) => t,
+            RustEnumMemberKind::Unary(t) => t,
+            RustEnumMemberKind::UnaryNamed { type_name, .. } => type_name,
         }
     }
 
     pub fn type_name_mut(&mut self) -> &mut TypeName {
         match self {
-            RustEnumMember::Nullary(t) => t,
-            RustEnumMember::Unary(t) => t,
-            RustEnumMember::UnaryNamed { type_name, .. } => type_name,
+            RustEnumMemberKind::Nullary(t) => t,
+            RustEnumMemberKind::Unary(t) => t,
+            RustEnumMemberKind::UnaryNamed { type_name, .. } => type_name,
         }
     }
+}
+
+pub type RustVariantAttrs = Attrs<RustVariantAttr>;
+
+pub enum RustVariantAttr {
+    Serde(SerdeVariantAttr),
 }
 
 pub struct RustAlias {
@@ -344,7 +351,7 @@ pub fn type_deps(segments: &[RustSegment]) -> CoDirectedAcyclicGraph<usize> {
             RustSegment::Enum(e) => e
                 .member
                 .iter()
-                .map(|m| m.type_name().name.as_str())
+                .map(|m| m.kind.type_name().name.as_str())
                 .collect(),
             RustSegment::Alias(a) => {
                 a.ty.get_using()

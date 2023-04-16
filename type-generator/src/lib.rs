@@ -19,7 +19,7 @@ use swc_common::{
 use swc_ecma_parser::{lexer::Lexer, Capturing, Parser, StringInput, Syntax};
 
 use ir::{
-    type_deps, LiteralKeyMap, RustAlias, RustContainerAttrs, RustEnum, RustEnumMember,
+    type_deps, LiteralKeyMap, RustAlias, RustContainerAttrs, RustEnum, RustEnumMemberKind,
     RustFieldAttr, RustFieldAttrs, RustMemberType, RustSegment, RustStruct, RustStructMember,
     RustType, SerdeFieldAttr, TypeName,
 };
@@ -113,10 +113,13 @@ fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
                 // export type Hoge = Fuga | Fuge;
                 let i = &tref.type_name.as_ident().unwrap();
                 let sym = i.sym.to_string();
-                member.push(RustEnumMember::Unary(TypeName {
-                    name: sym,
-                    is_borrowed: false,
-                }));
+                member.push(
+                    RustEnumMemberKind::Unary(TypeName {
+                        name: sym,
+                        is_borrowed: false,
+                    })
+                    .into(),
+                );
                 //write!(out, "{}({})", &i.sym, &i.sym)?;
             }
             swc_ecma_ast::TsType::TsLitType(tlit) => {
@@ -127,10 +130,13 @@ fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
                     _ => todo!(),
                 };
                 //write!(out, "{}", s)?;
-                member.push(RustEnumMember::Nullary(TypeName {
-                    name: s,
-                    is_borrowed: false,
-                }));
+                member.push(
+                    RustEnumMemberKind::Nullary(TypeName {
+                        name: s,
+                        is_borrowed: false,
+                    })
+                    .into(),
+                );
             }
             swc_ecma_ast::TsType::TsArrayType(_tarray) => {
                 // export WebhookEvents = | ( | "a" | "b" | "c" )[] | ["*"];

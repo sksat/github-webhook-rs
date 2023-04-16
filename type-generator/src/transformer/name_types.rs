@@ -34,15 +34,7 @@ pub fn name_types(segments: &mut Vec<RustSegment>) {
                                         RenameRule::SnakeCase.convert_to_pascal(&mut name);
                                         name.push_str("LiteralUnion");
 
-                                        extra_segments.push(RustSegment::Enum(
-                                            RustEnum::from_members(
-                                                name.to_owned(),
-                                                std::mem::take(vs).into_iter().map(|v| {
-                                                    // FIXME: `v` is possibly not valid rust ident
-                                                    RustEnumMember::Nullary(TypeName::new(v))
-                                                }),
-                                            ),
-                                        ));
+                                        create_enum(&mut extra_segments, &name, vs);
 
                                         name
                                     })
@@ -56,4 +48,33 @@ pub fn name_types(segments: &mut Vec<RustSegment>) {
         }
     }
     segments.extend(extra_segments.into_iter());
+}
+
+fn create_enum(extra_segments: &mut Vec<RustSegment>, name: &String, vs: &mut Vec<String>) {
+    extra_segments.push(RustSegment::Enum(RustEnum::from_members(
+        name.to_owned(),
+        std::mem::take(vs).into_iter().map(|v| {
+            // FIXME: `v` is possibly not valid rust ident
+            let renamed = v
+                .split(&['-', ' ', '_'])
+                .map(|term| {
+                    let mut term = term.to_ascii_lowercase();
+                    if let Some(c) = term.chars().next() {
+                        let capital_ch = c.to_ascii_uppercase();
+                        term.replace_range(..1, &capital_ch.to_string());
+                    }
+                    term
+                })
+                .collect::<Vec<_>>()
+                .concat();
+            let mut attr = RustVariantAttrs::Default;
+            if v != renamed {
+                attr.add_attr(RustVariantAttr::Serde(SerdeVariantAttr::Rename(v)));
+            }
+            RustEnumMember {
+                attr,
+                kind: RustEnumMemberKind::Nullary(TypeName::new(renamed)),
+            }
+        }),
+    )));
 }

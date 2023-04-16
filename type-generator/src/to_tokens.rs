@@ -2,9 +2,10 @@ use proc_macro2::{TokenStream, TokenTree};
 use quote::{quote, ToTokens, TokenStreamExt};
 
 use crate::ir::{
-    RustAlias, RustContainerAttrs, RustEnum, RustEnumMember, RustFieldAttr, RustFieldAttrs,
-    RustMemberType, RustSegment, RustStruct, RustStructAttr, RustStructMember, RustType,
-    SerdeContainerAttr, SerdeFieldAttr, TypeName,
+    Attrs, RustAlias, RustContainerAttrs, RustEnum, RustEnumMember, RustEnumMemberKind,
+    RustFieldAttr, RustFieldAttrs, RustMemberType, RustSegment, RustStruct, RustStructAttr,
+    RustStructMember, RustType, RustVariantAttr, SerdeContainerAttr, SerdeFieldAttr,
+    SerdeVariantAttr, TypeName,
 };
 
 macro_rules! id {
@@ -275,7 +276,7 @@ impl ToTokens for RustEnum {
         } = self;
         let name = id!(name);
         tokens.extend(
-            if attr.is_tagged_enum() || member.iter().all(|m| m.is_nullary()) {
+            if attr.is_tagged_enum() || member.iter().all(|m| m.kind.is_nullary()) {
                 quote! {
                     #[derive(Debug, Deserialize)]
                 }
@@ -336,25 +337,78 @@ impl ToTokens for RustAlias {
     }
 }
 
-impl ToTokens for RustEnumMember {
+impl ToTokens for RustEnumMemberKind {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         tokens.extend(
             match self {
-                RustEnumMember::Nullary(v) => {
+                RustEnumMemberKind::Nullary(v) => {
                     let v = id!(&v.name);
                     quote!(#v,)
                 }
-                RustEnumMember::Unary(a) => {
+                RustEnumMemberKind::Unary(a) => {
                     let n = id!(&a.name);
                     quote!(#n(#a),)
                 }
-                RustEnumMember::UnaryNamed {
+                RustEnumMemberKind::UnaryNamed {
                     variant_name,
                     type_name,
                 } => {
                     let variant_name = id!(variant_name);
                     quote!(#variant_name(#type_name),)
                 }
+            }
+            .into_iter(),
+        )
+    }
+}
+
+impl<Field: ToTokens> ToTokens for Attrs<Field> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            Attrs::Default => (),
+            Attrs::With(ws) => tokens.extend(
+                quote! {
+                    #(#ws)*
+                }
+                .into_iter(),
+            ),
+        }
+    }
+}
+
+impl ToTokens for RustEnumMember {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let Self { attr, kind } = self;
+        tokens.extend(
+            quote! {
+                #attr
+                #kind
+            }
+            .into_iter(),
+        )
+    }
+}
+
+impl ToTokens for RustVariantAttr {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.extend(
+            match self {
+                RustVariantAttr::Serde(s) => quote! {
+                    #[serde(#s)]
+                },
+            }
+            .into_iter(),
+        )
+    }
+}
+
+impl ToTokens for SerdeVariantAttr {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.extend(
+            match self {
+                SerdeVariantAttr::Rename(s) => quote! {
+                    rename = #s
+                },
             }
             .into_iter(),
         )
