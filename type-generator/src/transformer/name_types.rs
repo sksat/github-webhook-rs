@@ -33,9 +33,9 @@ pub fn name_types(segments: &mut Vec<RustSegment>) {
                                     .entry(vs.to_vec())
                                     .or_insert_with(|| {
                                         // create new enum from union
-                                        let mut name = memb.name.to_owned();
-                                        RenameRule::SnakeCase.convert_to_pascal(&mut name);
-                                        name.push_str("LiteralUnion");
+                                        let mut prop = memb.name.to_owned();
+                                        RenameRule::SnakeCase.convert_to_pascal(&mut prop);
+                                        let name = format!("{}{prop}LiteralUnion", s.name);
 
                                         create_enum(&mut extra_segments, &name, vs);
 
