@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 
 use crate::{
-    dag::CoDAG,
+    dag::CoDirectedAcyclicGraph,
     ir::{TypeName, *},
 };
 
-pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDAG<usize>) {
+pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDirectedAcyclicGraph<usize>) {
     let mut decorated: HashSet<String> = HashSet::new();
     for index in type_deps.co_topo_sort() {
         let seg = segments.get_mut(index).unwrap();

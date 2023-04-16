@@ -27,10 +27,8 @@ impl<Node: Copy + Hash + Eq> DirectedAcyclicGraph<Node> {
         for node in self.nodes.iter() {
             in_degree.insert(*node, 0);
         }
-        for children in self.edges.values() {
-            for child in children {
-                *in_degree.entry(*child).or_insert(0) += 1;
-            }
+        for child in self.edges.values().flatten() {
+            *in_degree.entry(*child).or_insert(0) += 1;
         }
         let mut queue: Vec<_> = in_degree
             .iter()
@@ -48,7 +46,7 @@ impl<Node: Copy + Hash + Eq> DirectedAcyclicGraph<Node> {
         while let Some(node) = queue.pop() {
             result.push(node);
             if let Some(children) = self.edges.get(&node) {
-                for child in children.iter() {
+                for child in children {
                     let m = in_degree.get_mut(child).unwrap();
                     *m -= 1;
                     if *m == 0 {
@@ -61,11 +59,11 @@ impl<Node: Copy + Hash + Eq> DirectedAcyclicGraph<Node> {
     }
 }
 
-pub struct CoDAG<Node> {
+pub struct CoDirectedAcyclicGraph<Node> {
     dag: DirectedAcyclicGraph<Node>,
 }
 
-impl<Node: Copy + Hash + Eq> CoDAG<Node> {
+impl<Node: Copy + Hash + Eq> CoDirectedAcyclicGraph<Node> {
     pub fn new() -> Self {
         Self {
             dag: DirectedAcyclicGraph::new(),
@@ -81,7 +79,7 @@ impl<Node: Copy + Hash + Eq> CoDAG<Node> {
     }
 }
 
-impl<Node: Copy + Hash + Eq> Default for CoDAG<Node> {
+impl<Node: Copy + Hash + Eq> Default for CoDirectedAcyclicGraph<Node> {
     fn default() -> Self {
         Self::new()
     }
@@ -107,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_co_topo_sort() {
-        let mut dag = CoDAG::new();
+        let mut dag = CoDirectedAcyclicGraph::new();
         dag.add_edge("A", "B");
         dag.add_edge("A", "C");
         dag.add_edge("B", "D");

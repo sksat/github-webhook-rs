@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::dag::CoDAG;
+use crate::dag::CoDirectedAcyclicGraph;
 
 pub enum RustSegment {
     Struct(RustStruct),
@@ -301,13 +301,13 @@ pub struct RustAlias {
 
 pub type LiteralKeyMap = HashMap<String, HashMap<String, String>>;
 
-pub fn type_deps(segments: &[RustSegment]) -> CoDAG<usize> {
+pub fn type_deps(segments: &[RustSegment]) -> CoDirectedAcyclicGraph<usize> {
     let index_map: HashMap<_, _> = segments
         .iter()
         .enumerate()
         .map(|(i, s)| (s.name(), i))
         .collect();
-    let mut type_deps = CoDAG::new();
+    let mut type_deps = CoDirectedAcyclicGraph::new();
     for (i, segment) in segments.iter().enumerate() {
         let children: Vec<_> = match segment {
             RustSegment::Struct(s) => s
