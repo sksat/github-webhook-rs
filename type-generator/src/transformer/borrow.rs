@@ -65,7 +65,9 @@ pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDirectedAcyclicG
             }
             RustSegment::Enum(e) => {
                 for mem in &mut e.member {
-                    borrow_typename(mem.kind.type_name_mut(), &mut did_borrow, &decorated);
+                    if let Some(t) = mem.kind.as_type_name_mut() {
+                        borrow_typename(t, &mut did_borrow, &decorated);
+                    }
                 }
                 if did_borrow {
                     e.is_borrowed = true;

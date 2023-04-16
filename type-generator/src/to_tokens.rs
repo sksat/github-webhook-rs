@@ -342,7 +342,7 @@ impl ToTokens for RustEnumMemberKind {
         tokens.extend(
             match self {
                 RustEnumMemberKind::Nullary(v) => {
-                    let v = id!(&v.name);
+                    let v = id!(v);
                     quote!(#v,)
                 }
                 RustEnumMemberKind::Unary(a) => {

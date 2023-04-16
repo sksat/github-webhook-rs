@@ -264,7 +264,7 @@ impl From<RustEnumMemberKind> for RustEnumMember {
 }
 
 pub enum RustEnumMemberKind {
-    Nullary(TypeName),
+    Nullary(String),
     /// has the same ident. this is unary
     Unary(TypeName),
     UnaryNamed {
@@ -302,19 +302,19 @@ impl RustEnumMemberKind {
         }
     }
 
-    pub fn type_name(&self) -> &TypeName {
+    pub fn as_type_name(&self) -> Option<&TypeName> {
         match self {
-            RustEnumMemberKind::Nullary(t) => t,
-            RustEnumMemberKind::Unary(t) => t,
-            RustEnumMemberKind::UnaryNamed { type_name, .. } => type_name,
+            RustEnumMemberKind::Nullary(..) => None,
+            RustEnumMemberKind::Unary(t) => Some(t),
+            RustEnumMemberKind::UnaryNamed { type_name, .. } => Some(type_name),
         }
     }
 
-    pub fn type_name_mut(&mut self) -> &mut TypeName {
+    pub fn as_type_name_mut(&mut self) -> Option<&mut TypeName> {
         match self {
-            RustEnumMemberKind::Nullary(t) => t,
-            RustEnumMemberKind::Unary(t) => t,
-            RustEnumMemberKind::UnaryNamed { type_name, .. } => type_name,
+            RustEnumMemberKind::Nullary(..) => None,
+            RustEnumMemberKind::Unary(t) => Some(t),
+            RustEnumMemberKind::UnaryNamed { type_name, .. } => Some(type_name),
         }
     }
 }
@@ -351,7 +351,8 @@ pub fn type_deps(segments: &[RustSegment]) -> CoDirectedAcyclicGraph<usize> {
             RustSegment::Enum(e) => e
                 .member
                 .iter()
-                .map(|m| m.kind.type_name().name.as_str())
+                .flat_map(|m| m.kind.as_type_name())
+                .map(|tn| tn.name.as_str())
                 .collect(),
             RustSegment::Alias(a) => {
                 a.ty.get_using()

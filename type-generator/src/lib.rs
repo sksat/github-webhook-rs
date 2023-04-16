@@ -130,13 +130,7 @@ fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
                     _ => todo!(),
                 };
                 //write!(out, "{}", s)?;
-                member.push(
-                    RustEnumMemberKind::Nullary(TypeName {
-                        name: s,
-                        is_borrowed: false,
-                    })
-                    .into(),
-                );
+                member.push(RustEnumMemberKind::Nullary(s).into());
             }
             swc_ecma_ast::TsType::TsArrayType(_tarray) => {
                 // export WebhookEvents = | ( | "a" | "b" | "c" )[] | ["*"];

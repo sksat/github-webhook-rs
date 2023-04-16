@@ -76,7 +76,7 @@ fn create_enum(extra_segments: &mut Vec<RustSegment>, name: &String, vs: &mut Ve
             }
             RustEnumMember {
                 attr,
-                kind: RustEnumMemberKind::Nullary(TypeName::new(renamed)),
+                kind: RustEnumMemberKind::Nullary(renamed),
             }
         }),
     )));
