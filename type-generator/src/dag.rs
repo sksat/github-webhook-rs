@@ -55,6 +55,9 @@ impl<Node: Copy + Hash + Eq> DirectedAcyclicGraph<Node> {
                 }
             }
         }
+        if cfg!(debug_assertions) {
+            assert!(in_degree.values().all(|&i| i == 0), "the graph has cycle");
+        }
         result
     }
 }
