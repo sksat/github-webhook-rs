@@ -31,7 +31,7 @@ pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDirectedAcyclicG
                     borrow_typename(t, did_borrow, decorated);
                 }
                 RustType::Array(t) => borrow_type(t, did_borrow, decorated),
-                RustType::Empty => (),
+                RustType::Unit => (),
                 RustType::Unknown => (),
                 RustType::UnknownLiteral => (),
                 RustType::UnknownIntersection => (),

@@ -305,7 +305,7 @@ fn ts_keyword_type_to_rs(typ: &swc_ecma_ast::TsKeywordType) -> RustType {
         TsKeywordTypeKind::TsStringKeyword => RustType::String { is_borrowed: false },
         TsKeywordTypeKind::TsNumberKeyword => RustType::Number,
         TsKeywordTypeKind::TsBooleanKeyword => RustType::Boolean,
-        TsKeywordTypeKind::TsNullKeyword => RustType::Empty,
+        TsKeywordTypeKind::TsNullKeyword => RustType::Unit,
         _ => {
             unimplemented!("{:?}", typ.kind);
         }
@@ -321,7 +321,7 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
     let typ = match typ {
         swc_ecma_ast::TsType::TsKeywordType(tk) => {
             let t = ts_keyword_type_to_rs(tk);
-            if let RustType::Empty = &t {
+            if let RustType::Unit = &t {
                 nullable = true;
             }
             t

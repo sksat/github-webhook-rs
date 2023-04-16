@@ -143,7 +143,7 @@ impl ToTokens for RustType {
                 );
                 return;
             }
-            RustType::Empty => {
+            RustType::Unit => {
                 tokens.append(TokenTree::Group(proc_macro2::Group::new(
                     proc_macro2::Delimiter::Parenthesis,
                     Default::default(),

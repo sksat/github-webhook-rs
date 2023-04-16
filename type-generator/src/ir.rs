@@ -26,12 +26,15 @@ pub struct TypeName {
 
 #[derive(Debug)]
 pub enum RustType {
-    String { is_borrowed: bool },
+    String {
+        is_borrowed: bool,
+    },
     Number,
     Boolean,
     Custom(TypeName),
     Array(Box<RustType>),
-    Empty, // ()
+    /// `()`
+    Unit,
     Unknown,
     UnknownLiteral,
     UnknownIntersection,
