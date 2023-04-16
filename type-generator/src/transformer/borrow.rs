@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::{
     dag::CoDirectedAcyclicGraph,
-    ir::{TypeName, *},
+    ir::{RustFieldAttr, RustSegment, RustType, SerdeFieldAttr, TypeName},
 };
 
 pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDirectedAcyclicGraph<usize>) {

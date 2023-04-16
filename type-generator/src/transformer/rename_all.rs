@@ -1,4 +1,4 @@
-use crate::ir::*;
+use crate::ir::{RenameRule, RustEnumMemberKind, RustSegment, RustStructAttr, SerdeContainerAttr};
 
 pub fn adapt_rename_all(segment: &mut RustSegment) -> Option<()> {
     #[derive(Debug, Clone, Copy, PartialEq)]

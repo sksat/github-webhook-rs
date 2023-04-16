@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::ir::{TypeName, *};
+use crate::ir::{
+    RenameRule, RustEnum, RustEnumMember, RustEnumMemberKind, RustSegment, RustType,
+    RustVariantAttr, RustVariantAttrs, SerdeVariantAttr, TypeName,
+};
 
 /// add unnamed types to segments, and move references
 pub fn name_types(segments: &mut Vec<RustSegment>) {

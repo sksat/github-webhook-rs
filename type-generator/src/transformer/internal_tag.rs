@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ir::*;
+use crate::ir::{LiteralKeyMap, RustSegment, RustStructAttr, SerdeContainerAttr};
 
 /// find tag from rust enum and attr to it.
 pub fn adapt_internal_tag(segment: &mut RustSegment, lkm: &LiteralKeyMap) -> Option<()> {
