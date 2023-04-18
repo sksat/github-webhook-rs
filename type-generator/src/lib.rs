@@ -1,4 +1,5 @@
 mod dag;
+mod frontend;
 pub mod ir;
 mod to_tokens;
 mod transformer;
