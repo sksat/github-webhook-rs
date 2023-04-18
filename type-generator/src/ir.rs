@@ -44,8 +44,6 @@ pub enum RustType {
     Array(Box<RustType>),
     /// `()`
     Unit,
-    /// union that consists of string literal
-    StringLiteralUnion(Vec<String>),
     Unknown,
     UnknownLiteral,
     UnknownIntersection,

@@ -26,9 +26,10 @@ use ir::{
 };
 
 fn interface2struct(
+    st: &mut FrontendState,
     interface: &swc_ecma_ast::TsInterfaceDecl,
     lkm: &mut LiteralKeyMap,
-) -> RustStruct {
+) {
     let name = interface.id.sym.to_string();
     let ibody = &interface.body.body;
 
@@ -73,7 +74,14 @@ fn interface2struct(
         }
 
         let ptype = &prop.type_ann.as_ref().unwrap().type_ann;
-        let (is_optional, ty) = ts_type_to_rs(ptype);
+        let (is_optional, ty) = ts_type_to_rs(
+            st,
+            Some(TypeConvertContext {
+                struct_name: &name,
+                field_name: pkey,
+            }),
+            ptype,
+        );
 
         fn extract_literal_type(ptype: &swc_ecma_ast::TsType) -> Option<&str> {
             ptype.as_ts_lit_type()?.lit.as_str()?.raw.as_deref()
@@ -98,12 +106,13 @@ fn interface2struct(
         });
     }
 
-    RustStruct {
+    let s = RustStruct {
         attr: RustContainerAttrs::Default,
         name,
         is_borrowed: false,
         member: rmember,
-    }
+    };
+    st.segments.push(RustSegment::Struct(s));
 }
 
 fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
@@ -171,10 +180,20 @@ fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
     }
 }
 
+pub struct FrontendState<'a> {
+    segments: &'a mut Vec<RustSegment>,
+    name_types: frontend::name_types::State,
+}
+
 pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
     let module = extract_module(dts_file);
 
     let mut segments = Vec::new();
+
+    let mut st = FrontendState {
+        segments: &mut segments,
+        name_types: Default::default(),
+    };
 
     // candidate for discriminated union using literal
     // type name -> prop name -> literal value
@@ -186,7 +205,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
         let decl = &b.decl;
 
         //dbg!(&decl);
-        let segment = match decl {
+        match decl {
             swc_ecma_ast::Decl::TsInterface(interface) => {
                 //let name = interface.id.sym.as_ref();
                 //match name {
@@ -194,8 +213,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                 //    _ => {}
                 //}
 
-                let rstruct = interface2struct(interface, &mut lkm);
-                RustSegment::Struct(rstruct)
+                interface2struct(&mut st, interface, &mut lkm);
             }
             swc_ecma_ast::Decl::TsTypeAlias(talias) => {
                 let ident = talias.id.sym.as_ref();
@@ -215,30 +233,33 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                     swc_ecma_ast::TsType::TsTypeRef(tref) => {
                         let rhs = tref.type_name.as_ident().unwrap().sym.as_ref();
                         let rhs = rhs.to_owned();
-                        RustSegment::Alias(RustAlias {
+                        let a = RustSegment::Alias(RustAlias {
                             name: ident.to_owned(),
                             is_borrowed: false,
                             ty: RustType::Custom(TypeName {
                                 name: rhs,
                                 is_borrowed: false,
                             }),
-                        })
+                        });
+                        st.segments.push(a);
                     }
                     swc_ecma_ast::TsType::TsUnionOrIntersectionType(tuoi) => {
                         let tunion = tuoi.as_ts_union_type().unwrap();
 
                         let renum = tunion2enum(ident, tunion);
-                        RustSegment::Enum(renum)
+                        let e = RustSegment::Enum(renum);
+                        st.segments.push(e);
                     }
                     swc_ecma_ast::TsType::TsKeywordType(..)
                     | swc_ecma_ast::TsType::TsArrayType(..) => {
                         // export type Hoge = number;
-                        let typ = ts_type_to_rs(typ).1;
-                        RustSegment::Alias(RustAlias {
+                        let typ = ts_type_to_rs(&mut st, None, typ).1;
+                        let a = RustSegment::Alias(RustAlias {
                             name: ident.to_owned(),
                             is_borrowed: false,
                             ty: typ,
-                        })
+                        });
+                        st.segments.push(a);
                     }
                     swc_ecma_ast::TsType::TsTypeOperator(_toperator) => {
                         // export type WebhookEventName = keyof EventPayloadMap;
@@ -253,11 +274,9 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
             }
             _ => unreachable!(),
         };
-        segments.push(segment);
         //println!("{}", b.is_export_decl());
     }
-
-    transformer::name_types(&mut segments);
+    // drop(st);
 
     for segment in &mut segments {
         transformer::adapt_internal_tag(segment, &lkm);
@@ -315,7 +334,16 @@ fn ts_keyword_type_to_rs(typ: &swc_ecma_ast::TsKeywordType) -> RustType {
     }
 }
 
-fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
+struct TypeConvertContext<'a> {
+    struct_name: &'a str,
+    field_name: &'a str,
+}
+
+fn ts_type_to_rs(
+    st: &mut FrontendState,
+    ctxt: Option<TypeConvertContext>,
+    typ: &swc_ecma_ast::TsType,
+) -> (bool, RustType) {
     use swc_ecma_ast::TsKeywordTypeKind;
     use swc_ecma_ast::TsUnionOrIntersectionType;
 
@@ -347,7 +375,7 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
 
                     assert!(!types.is_empty());
                     if types.len() == 1 {
-                        let (n, t) = ts_type_to_rs(&types[0]);
+                        let (n, t) = ts_type_to_rs(st, ctxt, &types[0]);
                         return (n || nullable, t);
                     }
 
@@ -371,7 +399,17 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
                             })
                             .collect();
                         variants.sort();
-                        return (nullable, RustType::StringLiteralUnion(variants));
+                        let TypeConvertContext {
+                            struct_name,
+                            field_name,
+                        } = ctxt.expect("provide ctxt");
+                        let tn = frontend::name_types::string_literal_union(
+                            st,
+                            variants,
+                            struct_name,
+                            field_name,
+                        );
+                        return (nullable, RustType::Custom(tn));
                         //TODO: comment strs  // {:?}", strs));
                     }
 
@@ -396,7 +434,7 @@ fn ts_type_to_rs(typ: &swc_ecma_ast::TsType) -> (bool, RustType) {
             })
         }
         swc_ecma_ast::TsType::TsArrayType(tarray) => {
-            let (_n, etype) = ts_type_to_rs(&tarray.elem_type);
+            let (_n, etype) = ts_type_to_rs(st, ctxt, &tarray.elem_type);
             //format!("Vec<{etype}>")
             RustType::Array(Box::new(etype))
         }

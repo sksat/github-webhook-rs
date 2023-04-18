@@ -1,1 +1,1 @@
-mod name_types;
+pub mod name_types;

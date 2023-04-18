@@ -151,15 +151,6 @@ impl ToTokens for RustType {
                 )));
                 return;
             }
-            RustType::StringLiteralUnion(..) => {
-                tokens.extend(
-                    quote! {
-                        String
-                    }
-                    .into_iter(),
-                );
-                return;
-            }
             RustType::Unknown => "Unknown",
             RustType::UnknownLiteral => "UnknownLiteral",
             RustType::UnknownIntersection => "UnknownIntersection",
