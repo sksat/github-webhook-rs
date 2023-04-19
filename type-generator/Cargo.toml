@@ -11,6 +11,6 @@ license = "MIT"
 [dependencies]
 anyhow = "1.0.70"
 structopt = "0.3.26"
-swc_common = { version = "0.29.39", features = ["tty-emitter"]}
-swc_ecma_ast = "0.95.6"
-swc_ecma_parser = "0.123.9"
+swc_common = { version = "0.31.4", features = ["tty-emitter"]}
+swc_ecma_ast = "0.103.4"
+swc_ecma_parser = "0.133.9"
