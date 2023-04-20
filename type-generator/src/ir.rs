@@ -94,6 +94,17 @@ pub struct RustStruct {
     pub member: Vec<RustStructMember>,
 }
 
+impl RustStruct {
+    pub fn from_members(name: String, members: impl Iterator<Item = RustStructMember>) -> Self {
+        Self {
+            attr: RustContainerAttrs::Default,
+            name,
+            is_borrowed: false,
+            member: members.collect(),
+        }
+    }
+}
+
 pub type RustContainerAttrs = Attrs<RustStructAttr>;
 
 impl RustContainerAttrs {

@@ -1,7 +1,7 @@
 pub mod name_types;
 
 use once_cell::sync::Lazy;
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
 use crate::ir::{
     LiteralKeyMap, RustContainerAttrs, RustEnum, RustEnumMemberKind, RustFieldAttr, RustFieldAttrs,
@@ -13,87 +13,97 @@ pub fn interface2struct<'input>(
     interface: &'input swc_ecma_ast::TsInterfaceDecl,
     lkm: &mut LiteralKeyMap,
 ) {
-    let name = interface.id.sym.to_string();
+    let name = interface.id.sym.as_ref();
     let ibody = &interface.body.body;
 
-    let mut rmember = Vec::new();
+    let member = ibody
+        .iter()
+        .map(|m| m.as_ts_property_signature().unwrap())
+        .flat_map(|prop| {
+            ts_prop_signature(
+                prop,
+                st,
+                TypeConvertContext {
+                    path: Path::from_iter([Cow::Borrowed(name)]),
+                },
+                name,
+                lkm,
+            )
+        })
+        .collect();
 
-    for member in ibody {
-        let prop = member.as_ts_property_signature().unwrap();
-        let mut is_optional = prop.optional;
-        //dbg!(prop);
-
-        let mut pkey: &str = match &*prop.key {
-            swc_ecma_ast::Expr::Ident(pkey) => &pkey.sym,
-            swc_ecma_ast::Expr::Lit(swc_ecma_ast::Lit::Str(_pkey)) => {
-                // TODO: use &pkey.value.as_ref()
-                continue;
-            }
-            _ => unreachable!(),
-        };
-        //let pkey = if let Some(pkey) = &prop.key.as_ident() {
-        //    // ident
-        //    &pkey.sym
-        //} else {
-        //    // interface { "+1": number; "-1": number; }
-        //    // TODO: parse
-        //    dbg!(prop);
-        //    "+1"
-        //};
-
-        let mut attr = RustFieldAttrs::Default;
-
-        // avoid conflict to Rust reserved word
-        static RENAME_RULES: Lazy<HashMap<&str, &str>> =
-            Lazy::new(|| HashMap::from_iter([("type", "type_"), ("ref", "ref_")]));
-        if let Some(renamed) = RENAME_RULES.get(pkey) {
-            attr.add_attr(RustFieldAttr::Serde(SerdeFieldAttr::Rename(
-                pkey.to_owned(),
-            )));
-            pkey = renamed;
-        }
-
-        let ptype = &prop.type_ann.as_ref().unwrap().type_ann;
-        let (is_optional2, ty) = ts_type_to_rs(
-            st,
-            Some(TypeConvertContext {
-                struct_name: &name,
-                field_name: pkey,
-            }),
-            ptype,
-        );
-        is_optional |= is_optional2;
-
-        fn extract_literal_type(ptype: &swc_ecma_ast::TsType) -> Option<&str> {
-            ptype.as_ts_lit_type()?.lit.as_str()?.raw.as_deref()
-        }
-
-        if let Some(lit) = extract_literal_type(ptype) {
-            lkm.entry(name.clone()).or_default().insert(
-                pkey.to_owned(),
-                lit.strip_prefix('\"')
-                    .unwrap()
-                    .strip_suffix('\"')
-                    .unwrap()
-                    .to_owned(),
-            );
-        }
-
-        rmember.push(RustStructMember {
-            ty: RustMemberType { ty, is_optional },
-            name: pkey.to_string(),
-            attr,
-            comment: None,
-        });
-    }
-
+    let name = name.to_owned();
     let s = RustStruct {
         attr: RustContainerAttrs::Default,
         name,
         is_borrowed: false,
-        member: rmember,
+        member,
     };
     st.segments.push(RustSegment::Struct(s));
+}
+
+pub fn ts_prop_signature<'input>(
+    prop: &'input swc_ecma_ast::TsPropertySignature,
+    st: &mut FrontendState<'input, '_>,
+    mut ctxt: TypeConvertContext<'input>,
+    name: &str,
+    lkm: &mut HashMap<String, HashMap<String, String>>,
+) -> Option<RustStructMember> {
+    let mut is_optional = prop.optional;
+    let mut pkey: &str = match &*prop.key {
+        swc_ecma_ast::Expr::Ident(pkey) => &pkey.sym,
+        swc_ecma_ast::Expr::Lit(swc_ecma_ast::Lit::Str(_pkey)) => {
+            // TODO: use &pkey.value.as_ref()
+            return None;
+        }
+        _ => unreachable!(),
+    };
+    let mut attr = RustFieldAttrs::Default;
+    // avoid conflict to Rust reserved word
+    static RENAME_RULES: Lazy<HashMap<&str, &str>> =
+        Lazy::new(|| HashMap::from_iter([("type", "type_"), ("ref", "ref_"), ("self", "self_")]));
+    if let Some(renamed) = RENAME_RULES.get(pkey) {
+        attr.add_attr(RustFieldAttr::Serde(SerdeFieldAttr::Rename(
+            pkey.to_owned(),
+        )));
+        pkey = renamed;
+    }
+    let ptype = &prop.type_ann.as_ref().unwrap().type_ann;
+    ctxt.path.push(Cow::Borrowed(pkey));
+
+    let (is_optional2, ty) = ts_type_to_rs(st, Some(ctxt), ptype, lkm);
+    is_optional |= is_optional2;
+
+    fn extract_literal_type(ptype: &swc_ecma_ast::TsType) -> Option<&str> {
+        ptype.as_ts_lit_type()?.lit.as_str()?.raw.as_deref()
+    }
+    if let Some(lit) = extract_literal_type(ptype) {
+        lkm.entry(name.to_owned()).or_default().insert(
+            pkey.to_owned(),
+            lit.strip_prefix('\"')
+                .unwrap()
+                .strip_suffix('\"')
+                .unwrap()
+                .to_owned(),
+        );
+    }
+    Some(RustStructMember {
+        ty: RustMemberType { ty, is_optional },
+        name: pkey.to_string(),
+        attr,
+        comment: None,
+    })
+    //dbg!(prop);
+
+    //let pkey = if let Some(pkey) = &prop.key.as_ident() {
+    //    // ident
+    //    &pkey.sym
+    //} else {
+    //    // interface { "+1": number; "-1": number; }
+    //    // TODO: parse
+    //    dbg!(prop);
+    //    "+1"
+    //};
 }
 
 pub fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
@@ -173,21 +183,25 @@ fn ts_keyword_type_to_rs(typ: &swc_ecma_ast::TsKeywordType) -> RustType {
         TsKeywordTypeKind::TsNumberKeyword => RustType::Number,
         TsKeywordTypeKind::TsBooleanKeyword => RustType::Boolean,
         TsKeywordTypeKind::TsNullKeyword => RustType::Unit,
+        TsKeywordTypeKind::TsUnknownKeyword => RustType::Unknown,
         _ => {
             unimplemented!("{:?}", typ.kind);
         }
     }
 }
 
+pub type Path<'a> = Vec<Cow<'a, str>>;
+
+#[derive(Clone)]
 pub struct TypeConvertContext<'a> {
-    struct_name: &'a str,
-    field_name: &'a str,
+    pub path: Path<'a>,
 }
 
 pub fn ts_type_to_rs<'input>(
     st: &mut FrontendState<'input, '_>,
-    ctxt: Option<TypeConvertContext>,
+    ctxt: Option<TypeConvertContext<'input>>,
     typ: &'input swc_ecma_ast::TsType,
+    lkm: &mut HashMap<String, HashMap<String, String>>,
 ) -> (bool, RustType) {
     use swc_ecma_ast::TsKeywordTypeKind;
     use swc_ecma_ast::TsUnionOrIntersectionType;
@@ -220,7 +234,7 @@ pub fn ts_type_to_rs<'input>(
 
                     assert!(!types.is_empty());
                     if types.len() == 1 {
-                        let (n, t) = ts_type_to_rs(st, ctxt, types[0]);
+                        let (n, t) = ts_type_to_rs(st, ctxt, types[0], lkm);
                         return (n || nullable, t);
                     }
 
@@ -243,12 +257,8 @@ pub fn ts_type_to_rs<'input>(
                             })
                             .collect();
                         variants.sort();
-                        let TypeConvertContext {
-                            struct_name,
-                            field_name,
-                        } = ctxt.expect("provide ctxt");
-                        let tn =
-                            name_types::string_literal_union(st, variants, struct_name, field_name);
+                        let TypeConvertContext { path } = ctxt.expect("provide ctxt");
+                        let tn = name_types::string_literal_union(st, variants, &path);
                         return (nullable, RustType::Custom(tn));
                         //TODO: comment strs  // {:?}", strs));
                     }
@@ -274,15 +284,14 @@ pub fn ts_type_to_rs<'input>(
             })
         }
         swc_ecma_ast::TsType::TsArrayType(tarray) => {
-            let (_n, etype) = ts_type_to_rs(st, ctxt, &tarray.elem_type);
+            let (_n, etype) = ts_type_to_rs(st, ctxt, &tarray.elem_type, lkm);
             //format!("Vec<{etype}>")
             RustType::Array(Box::new(etype))
         }
         swc_ecma_ast::TsType::TsTypeLit(tlit) => {
-            for _m in &tlit.members {
-                // dbg!(m);
-            }
-            RustType::Unknown
+            let tn = name_types::type_literal(st, tlit, ctxt.unwrap(), lkm);
+
+            RustType::Custom(tn)
         }
         _ => {
             //dbg!(typ);

@@ -1,29 +1,29 @@
 use std::collections::HashMap;
 
-use crate::ir::{
-    RenameRule, RustAlias, RustEnum, RustEnumMember, RustEnumMemberKind, RustSegment, RustType,
-    RustVariantAttr, RustVariantAttrs, SerdeVariantAttr, TypeName,
+use crate::{
+    case::detect_case,
+    ir::{
+        RustAlias, RustEnum, RustEnumMember, RustEnumMemberKind, RustSegment, RustStruct, RustType,
+        RustVariantAttr, RustVariantAttrs, SerdeVariantAttr, TypeName,
+    },
 };
 
-use super::FrontendState;
+use super::{ts_prop_signature, FrontendState, Path, TypeConvertContext};
 
 #[derive(Default)]
 pub struct State<'a> {
     /// set of literals -> rust type name
-    name_map: HashMap<Vec<&'a str>, String>,
+    literal_map: HashMap<Vec<&'a str>, String>,
 }
 
 pub fn string_literal_union<'input>(
     st: &mut FrontendState<'input, '_>,
     variants: Vec<&'input str>,
-    struct_name: &str,
-    prop_name: &str,
+    path: &Path,
 ) -> TypeName {
-    let mut prop = prop_name.to_owned();
-    RenameRule::SnakeCase.convert_to_pascal(&mut prop);
-    let name = format!("{struct_name}{prop}LiteralUnion");
+    let name = into_pascal(path);
 
-    TypeName::new(match st.name_types.name_map.get(&variants) {
+    TypeName::new(match st.name_types.literal_map.get(&variants) {
         Some(s) => {
             // create new alias from union
             create_alias(st, &name, s.to_owned());
@@ -33,7 +33,7 @@ pub fn string_literal_union<'input>(
             // create new enum from union
             create_enum(st, &name, &variants);
 
-            st.name_types.name_map.insert(variants, name.clone());
+            st.name_types.literal_map.insert(variants, name.clone());
             name
         }
     })
@@ -50,23 +50,12 @@ fn create_alias(st: &mut FrontendState, name: &String, old_name: String) {
 fn create_enum(st: &mut FrontendState, name: &String, vs: &[&str]) {
     st.segments.push(RustSegment::Enum(RustEnum::from_members(
         name.to_owned(),
-        vs.iter().map(|v| {
-            let renamed = v
-                .split(&['-', ' ', '_'])
-                .map(|term| {
-                    let mut term = term.to_ascii_lowercase();
-                    if let Some(c) = term.chars().next() {
-                        let capital_ch = c.to_ascii_uppercase();
-                        term.replace_range(..1, &capital_ch.to_string());
-                    }
-                    term
-                })
-                .collect::<Vec<_>>()
-                .concat();
+        vs.iter().map(|&v| {
+            let renamed = rename_to_valid_ident(v);
             let mut attr = RustVariantAttrs::Default;
-            if v != &renamed {
+            if v != renamed {
                 attr.add_attr(RustVariantAttr::Serde(SerdeVariantAttr::Rename(
-                    (*v).to_owned(),
+                    v.to_owned(),
                 )));
             }
             RustEnumMember {
@@ -75,4 +64,65 @@ fn create_enum(st: &mut FrontendState, name: &String, vs: &[&str]) {
             }
         }),
     )));
+}
+
+fn rename_to_valid_ident(s: &str) -> String {
+    s.split(&['-', ' ', '_'])
+        .map(|term| {
+            let mut term = term
+                .chars()
+                .filter_map(|c| {
+                    if c.is_ascii_alphanumeric() {
+                        Some(c.to_ascii_lowercase())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<String>();
+            if let Some(c) = term.chars().next() {
+                let capital_ch = c.to_ascii_uppercase();
+                let replace_with = if capital_ch.is_alphabetic() {
+                    capital_ch.to_string()
+                } else if capital_ch.is_numeric() {
+                    format!("N{capital_ch}")
+                } else {
+                    unimplemented!()
+                };
+                term.replace_range(..1, &replace_with);
+            }
+            term
+        })
+        .collect::<Vec<_>>()
+        .concat()
+}
+
+fn into_pascal(path: &Path) -> String {
+    path.iter()
+        .map(|p| {
+            let mut p = p.to_string();
+            detect_case(&p).into_rename_rule().convert_to_pascal(&mut p);
+            p
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+pub fn type_literal<'input>(
+    st: &mut FrontendState<'input, '_>,
+    type_literal: &'input swc_ecma_ast::TsTypeLit,
+    ctxt: TypeConvertContext<'input>,
+    lkm: &mut HashMap<String, HashMap<String, String>>,
+) -> TypeName {
+    let name = into_pascal(&ctxt.path);
+    let value = RustSegment::Struct(RustStruct::from_members(
+        name.to_owned(),
+        type_literal
+            .members
+            .iter()
+            .flat_map(|m| m.as_ts_property_signature())
+            .flat_map(|m| ts_prop_signature(m, st, ctxt.clone(), &name, lkm)),
+    ));
+    st.segments.push(value);
+
+    TypeName::new(name)
 }

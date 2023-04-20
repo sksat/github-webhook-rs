@@ -90,7 +90,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                     swc_ecma_ast::TsType::TsKeywordType(..)
                     | swc_ecma_ast::TsType::TsArrayType(..) => {
                         // export type Hoge = number;
-                        let typ = frontend::ts_type_to_rs(&mut st, None, typ).1;
+                        let typ = frontend::ts_type_to_rs(&mut st, None, typ, &mut lkm).1;
                         let a = RustSegment::Alias(RustAlias {
                             name: ident.to_owned(),
                             is_borrowed: false,
