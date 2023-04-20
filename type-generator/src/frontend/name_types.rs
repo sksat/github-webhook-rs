@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
-use crate::{
-    ir::{
-        RenameRule, RustAlias, RustEnum, RustEnumMember, RustEnumMemberKind, RustSegment, RustType,
-        RustVariantAttr, RustVariantAttrs, SerdeVariantAttr, TypeName,
-    },
-    FrontendState,
+use crate::ir::{
+    RenameRule, RustAlias, RustEnum, RustEnumMember, RustEnumMemberKind, RustSegment, RustType,
+    RustVariantAttr, RustVariantAttrs, SerdeVariantAttr, TypeName,
 };
+
+use super::FrontendState;
 
 #[derive(Default)]
 pub struct State<'a> {
