@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::{
     ir::{
-        RenameRule, RustEnum, RustEnumMember, RustEnumMemberKind, RustSegment, RustVariantAttr,
-        RustVariantAttrs, SerdeVariantAttr, TypeName,
+        RenameRule, RustAlias, RustEnum, RustEnumMember, RustEnumMemberKind, RustSegment, RustType,
+        RustVariantAttr, RustVariantAttrs, SerdeVariantAttr, TypeName,
     },
     FrontendState,
 };
@@ -20,20 +20,32 @@ pub fn string_literal_union(
     struct_name: &str,
     prop_name: &str,
 ) -> TypeName {
+    let mut prop = prop_name.to_owned();
+    RenameRule::SnakeCase.convert_to_pascal(&mut prop);
+    let name = format!("{struct_name}{prop}LiteralUnion");
+
     TypeName::new(match st.name_types.name_map.get(&variants) {
-        Some(s) => s.to_owned(),
+        Some(s) => {
+            // create new alias from union
+            create_alias(st, &name, s.to_owned());
+            name
+        }
         None => {
             // create new enum from union
-            let mut prop = prop_name.to_owned();
-            RenameRule::SnakeCase.convert_to_pascal(&mut prop);
-            let name = format!("{struct_name}{prop}LiteralUnion");
-
             create_enum(st, &name, &variants);
 
             st.name_types.name_map.insert(variants, name.clone());
             name
         }
     })
+}
+
+fn create_alias(st: &mut FrontendState, name: &String, old_name: String) {
+    st.segments.push(RustSegment::Alias(RustAlias {
+        name: name.to_owned(),
+        is_borrowed: false,
+        ty: RustType::Custom(TypeName::new(old_name)),
+    }));
 }
 
 fn create_enum(st: &mut FrontendState, name: &String, vs: &[String]) {
