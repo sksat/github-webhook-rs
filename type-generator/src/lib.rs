@@ -1,3 +1,4 @@
+pub mod case;
 mod dag;
 mod frontend;
 pub mod ir;
