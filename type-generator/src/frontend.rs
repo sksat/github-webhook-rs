@@ -20,10 +20,7 @@ pub fn interface2struct<'input>(
 
     for member in ibody {
         let prop = member.as_ts_property_signature().unwrap();
-        if prop.optional {
-            // TODO: optional or skip
-            continue;
-        }
+        let mut is_optional = prop.optional;
         //dbg!(prop);
 
         let mut pkey: &str = match &*prop.key {
@@ -57,7 +54,7 @@ pub fn interface2struct<'input>(
         }
 
         let ptype = &prop.type_ann.as_ref().unwrap().type_ann;
-        let (is_optional, ty) = ts_type_to_rs(
+        let (is_optional2, ty) = ts_type_to_rs(
             st,
             Some(TypeConvertContext {
                 struct_name: &name,
@@ -65,6 +62,7 @@ pub fn interface2struct<'input>(
             }),
             ptype,
         );
+        is_optional |= is_optional2;
 
         fn extract_literal_type(ptype: &swc_ecma_ast::TsType) -> Option<&str> {
             ptype.as_ts_lit_type()?.lit.as_str()?.raw.as_deref()
