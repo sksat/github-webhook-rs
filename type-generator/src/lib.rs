@@ -25,9 +25,9 @@ use ir::{
     RustType, SerdeFieldAttr, TypeName,
 };
 
-fn interface2struct(
-    st: &mut FrontendState,
-    interface: &swc_ecma_ast::TsInterfaceDecl,
+fn interface2struct<'input>(
+    st: &mut FrontendState<'input, '_>,
+    interface: &'input swc_ecma_ast::TsInterfaceDecl,
     lkm: &mut LiteralKeyMap,
 ) {
     let name = interface.id.sym.to_string();
@@ -180,9 +180,9 @@ fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
     }
 }
 
-pub struct FrontendState<'a> {
-    segments: &'a mut Vec<RustSegment>,
-    name_types: frontend::name_types::State,
+pub struct FrontendState<'input, 'output> {
+    segments: &'output mut Vec<RustSegment>,
+    name_types: frontend::name_types::State<'input>,
 }
 
 pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
@@ -199,7 +199,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
     // type name -> prop name -> literal value
     let mut lkm: LiteralKeyMap = HashMap::new();
 
-    for b in module.body {
+    for b in &module.body {
         let b = b.as_module_decl().unwrap();
         let b = b.as_export_decl().expect("module have only exports");
         let decl = &b.decl;
@@ -339,10 +339,10 @@ struct TypeConvertContext<'a> {
     field_name: &'a str,
 }
 
-fn ts_type_to_rs(
-    st: &mut FrontendState,
+fn ts_type_to_rs<'input>(
+    st: &mut FrontendState<'input, '_>,
     ctxt: Option<TypeConvertContext>,
-    typ: &swc_ecma_ast::TsType,
+    typ: &'input swc_ecma_ast::TsType,
 ) -> (bool, RustType) {
     use swc_ecma_ast::TsKeywordTypeKind;
     use swc_ecma_ast::TsUnionOrIntersectionType;
@@ -361,7 +361,7 @@ fn ts_type_to_rs(
             match tsuoi {
                 TsUnionOrIntersectionType::TsUnionType(tunion) => {
                     // nullable check
-                    let mut types = tunion.types.clone();
+                    let mut types: Vec<&Box<swc_ecma_ast::TsType>> = tunion.types.iter().collect();
                     // obtain non-null types within union, judging if there is null keyword
                     types.retain(|t| {
                         if let Some(tkey) = t.as_ts_keyword_type() {
@@ -375,7 +375,7 @@ fn ts_type_to_rs(
 
                     assert!(!types.is_empty());
                     if types.len() == 1 {
-                        let (n, t) = ts_type_to_rs(st, ctxt, &types[0]);
+                        let (n, t) = ts_type_to_rs(st, ctxt, types[0]);
                         return (n || nullable, t);
                     }
 
@@ -385,7 +385,7 @@ fn ts_type_to_rs(
                             .map(|t| t.lit.is_str())
                             .unwrap_or_default()
                     }) {
-                        let mut variants: Vec<String> = types
+                        let mut variants: Vec<&str> = types
                             .iter()
                             .map(|t| {
                                 t.as_ts_lit_type()
@@ -395,7 +395,6 @@ fn ts_type_to_rs(
                                     .unwrap()
                                     .value
                                     .as_ref()
-                                    .to_owned()
                             })
                             .collect();
                         variants.sort();

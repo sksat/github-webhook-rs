@@ -9,14 +9,14 @@ use crate::{
 };
 
 #[derive(Default)]
-pub struct State {
+pub struct State<'a> {
     /// set of literals -> rust type name
-    name_map: HashMap<Vec<String>, String>,
+    name_map: HashMap<Vec<&'a str>, String>,
 }
 
-pub fn string_literal_union(
-    st: &mut FrontendState,
-    variants: Vec<String>,
+pub fn string_literal_union<'input>(
+    st: &mut FrontendState<'input, '_>,
+    variants: Vec<&'input str>,
     struct_name: &str,
     prop_name: &str,
 ) -> TypeName {
@@ -48,7 +48,7 @@ fn create_alias(st: &mut FrontendState, name: &String, old_name: String) {
     }));
 }
 
-fn create_enum(st: &mut FrontendState, name: &String, vs: &[String]) {
+fn create_enum(st: &mut FrontendState, name: &String, vs: &[&str]) {
     st.segments.push(RustSegment::Enum(RustEnum::from_members(
         name.to_owned(),
         vs.iter().map(|v| {
@@ -67,7 +67,7 @@ fn create_enum(st: &mut FrontendState, name: &String, vs: &[String]) {
             let mut attr = RustVariantAttrs::Default;
             if v != &renamed {
                 attr.add_attr(RustVariantAttr::Serde(SerdeVariantAttr::Rename(
-                    v.to_owned(),
+                    (*v).to_owned(),
                 )));
             }
             RustEnumMember {
