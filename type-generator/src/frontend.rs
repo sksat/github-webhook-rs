@@ -6,9 +6,9 @@ use std::{borrow::Cow, collections::HashMap};
 use crate::{
     case,
     ir::{
-        LiteralKeyMap, RustAlias, RustContainerAttrs, RustEnum, RustEnumMemberKind, RustFieldAttr,
-        RustFieldAttrs, RustMemberType, RustSegment, RustStruct, RustStructMember, RustType,
-        SerdeFieldAttr, TypeName,
+        LiteralKeyMap, RustAlias, RustContainerAttrs, RustEnum, RustEnumMember, RustEnumMemberKind,
+        RustFieldAttr, RustFieldAttrs, RustMemberType, RustSegment, RustStruct, RustStructAttr,
+        RustStructMember, RustType, RustVariantAttrs, SerdeContainerAttr, SerdeFieldAttr, TypeName,
     },
 };
 
@@ -119,10 +119,10 @@ pub fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
                 let i = &tref.type_name.as_ident().unwrap();
                 let sym = i.sym.to_string();
                 member.push(
-                    RustEnumMemberKind::Unary(TypeName {
+                    RustEnumMemberKind::Unary(RustType::Custom(TypeName {
                         name: sym,
                         is_borrowed: false,
-                    })
+                    }))
                     .into(),
                 );
                 //write!(out, "{}({})", &i.sym, &i.sym)?;
@@ -262,11 +262,27 @@ pub fn ts_type_to_rs<'input>(
                             break 't RustType::Custom(tn);
                             //TODO: comment strs  // {:?}", strs));
                         }
-
-                        // other types
-                        dbg!(types);
-
-                        RustType::UnknownUnion
+                        let variants: Vec<_> = types
+                            .iter()
+                            .map(|t| {
+                                let (_, t) = ts_type_to_rs(st, ctxt.clone(), t, lkm);
+                                RustEnumMember {
+                                    attr: RustVariantAttrs::Default,
+                                    kind: RustEnumMemberKind::Unary(t),
+                                }
+                            })
+                            .collect();
+                        let mut name = into_pascal(&ctxt.unwrap().path);
+                        name.push_str("Union");
+                        st.segments.push(RustSegment::Enum(RustEnum {
+                            attr: RustContainerAttrs::from_attr(RustStructAttr::Serde(
+                                SerdeContainerAttr::Untagged,
+                            )),
+                            name: name.to_owned(),
+                            is_borrowed: false,
+                            member: variants,
+                        }));
+                        RustType::Custom(TypeName::new(name))
                     }
                     TsUnionOrIntersectionType::TsIntersectionType(tints) => {
                         if tints.types.len() == 2 {

@@ -7,7 +7,7 @@ pub fn adapt_internal_tag(segment: &mut RustSegment, lkm: &LiteralKeyMap) -> Opt
     if let RustSegment::Enum(re) = segment {
         let mut cand_props: HashMap<String, String> = Default::default();
         for memb in &re.member {
-            let tname = &memb.kind.as_unary()?.name;
+            let tname = &memb.kind.as_unary()?.as_custom()?.name;
             let props = lkm.get(tname)?;
             if cand_props.is_empty() {
                 cand_props = props.clone();
@@ -25,7 +25,7 @@ pub fn adapt_internal_tag(segment: &mut RustSegment, lkm: &LiteralKeyMap) -> Opt
         }
         let tag_name = cand_props.keys().next().unwrap().to_owned();
         for memb in &mut re.member {
-            let inter = &memb.kind.as_unary().unwrap().name;
+            let inter = &memb.kind.as_unary().unwrap().as_custom().unwrap().name;
             let variant_name = lkm.get(inter).unwrap().get(&tag_name).unwrap().to_owned();
             memb.kind.name_unary(variant_name);
         }

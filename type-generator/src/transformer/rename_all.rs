@@ -1,6 +1,6 @@
 use crate::{
     case::{detect_case, CaseConvention},
-    ir::{RustEnumMemberKind, RustSegment, RustStructAttr, SerdeContainerAttr},
+    ir::{RustEnumMemberKind, RustSegment, RustStructAttr, RustType, SerdeContainerAttr},
 };
 
 pub fn adapt_rename_all(segment: &mut RustSegment) -> Option<()> {
@@ -9,7 +9,7 @@ pub fn adapt_rename_all(segment: &mut RustSegment) -> Option<()> {
         for memb in &re.member {
             let s = match &memb.kind {
                 RustEnumMemberKind::Nullary(v) => v,
-                RustEnumMemberKind::Unary(v) => &v.name,
+                RustEnumMemberKind::Unary(v) => v.to_ident(),
                 RustEnumMemberKind::UnaryNamed { variant_name, .. } => variant_name,
             };
             match conv.as_mut() {
@@ -29,12 +29,14 @@ pub fn adapt_rename_all(segment: &mut RustSegment) -> Option<()> {
         for memb in &mut re.member {
             match &mut memb.kind {
                 RustEnumMemberKind::Unary(v) => {
-                    let type_name = v.to_owned();
-                    rr.convert_to_pascal(&mut v.name);
-                    memb.kind = RustEnumMemberKind::UnaryNamed {
-                        variant_name: v.name.to_owned(),
-                        type_name,
-                    };
+                    if let Some(v) = v.as_mut_custom() {
+                        let type_name = v.to_owned();
+                        rr.convert_to_pascal(&mut v.name);
+                        memb.kind = RustEnumMemberKind::UnaryNamed {
+                            variant_name: v.name.to_owned(),
+                            type_name: RustType::Custom(type_name),
+                        };
+                    }
                 }
                 RustEnumMemberKind::Nullary(variant_name) => {
                     rr.convert_to_pascal(variant_name);

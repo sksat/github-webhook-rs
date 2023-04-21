@@ -68,6 +68,9 @@ impl ToTokens for SerdeContainerAttr {
                 SerdeContainerAttr::Tag(name) => quote! {
                     tag = #name
                 },
+                SerdeContainerAttr::Untagged => quote! {
+                    untagged
+                },
             }
             .into_iter(),
         )
@@ -340,7 +343,8 @@ impl ToTokens for RustEnumMemberKind {
                     quote!(#v,)
                 }
                 RustEnumMemberKind::Unary(a) => {
-                    let n = id!(&a.name);
+                    let n = a.to_ident();
+                    let n = id!(n);
                     quote!(#n(#a),)
                 }
                 RustEnumMemberKind::UnaryNamed {

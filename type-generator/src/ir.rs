@@ -33,7 +33,7 @@ impl TypeName {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RustType {
     String {
         is_borrowed: bool,
@@ -51,6 +51,21 @@ pub enum RustType {
 }
 
 impl RustType {
+    pub fn to_ident(&self) -> &str {
+        match self {
+            RustType::String { .. } => "String",
+            RustType::Number => "Number",
+            RustType::Boolean => "Boolean",
+            RustType::Custom(c) => &c.name,
+            RustType::Array(t) => t.to_ident(),
+            RustType::Unit => "Unit",
+            RustType::Unknown => "Unknown",
+            RustType::UnknownLiteral => "UnknownLiteral",
+            RustType::UnknownIntersection => "UnknownIntersection",
+            RustType::UnknownUnion => "UnknownUnion",
+        }
+    }
+
     pub fn is_unknown(&self) -> bool {
         match &self {
             RustType::Unknown
@@ -63,6 +78,14 @@ impl RustType {
     }
 
     pub fn as_custom(&self) -> Option<&TypeName> {
+        if let Self::Custom(t) = self {
+            Some(t)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_mut_custom(&mut self) -> Option<&mut TypeName> {
         if let Self::Custom(t) = self {
             Some(t)
         } else {
@@ -133,6 +156,7 @@ impl RustStructAttr {
 pub enum SerdeContainerAttr {
     RenameAll(RenameRule),
     Tag(String),
+    Untagged,
 }
 
 impl SerdeContainerAttr {
@@ -298,10 +322,10 @@ impl From<RustEnumMemberKind> for RustEnumMember {
 pub enum RustEnumMemberKind {
     Nullary(String),
     /// has the same ident. this is unary
-    Unary(TypeName),
+    Unary(RustType),
     UnaryNamed {
         variant_name: String,
-        type_name: TypeName,
+        type_name: RustType,
     },
 }
 
@@ -326,7 +350,7 @@ impl RustEnumMemberKind {
         matches!(self, Self::Nullary(..))
     }
 
-    pub fn as_unary(&self) -> Option<&TypeName> {
+    pub fn as_unary(&self) -> Option<&RustType> {
         if let Self::Unary(v) = self {
             Some(v)
         } else {
@@ -334,7 +358,7 @@ impl RustEnumMemberKind {
         }
     }
 
-    pub fn as_type_name(&self) -> Option<&TypeName> {
+    pub fn as_type(&self) -> Option<&RustType> {
         match self {
             RustEnumMemberKind::Nullary(..) => None,
             RustEnumMemberKind::Unary(t) => Some(t),
@@ -342,7 +366,7 @@ impl RustEnumMemberKind {
         }
     }
 
-    pub fn as_type_name_mut(&mut self) -> Option<&mut TypeName> {
+    pub fn as_type_mut(&mut self) -> Option<&mut RustType> {
         match self {
             RustEnumMemberKind::Nullary(..) => None,
             RustEnumMemberKind::Unary(t) => Some(t),
@@ -383,7 +407,8 @@ pub fn type_deps(segments: &[RustSegment]) -> CoDirectedAcyclicGraph<usize> {
             RustSegment::Enum(e) => e
                 .member
                 .iter()
-                .flat_map(|m| m.kind.as_type_name())
+                .flat_map(|m| m.kind.as_type())
+                .flat_map(|m| m.as_custom())
                 .map(|tn| tn.name.as_str())
                 .collect(),
             RustSegment::Alias(a) => {
