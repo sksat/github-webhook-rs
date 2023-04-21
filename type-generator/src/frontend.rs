@@ -214,13 +214,7 @@ pub fn ts_type_to_rs<'input>(
 
     let typ = 't: {
         match typ {
-            swc_ecma_ast::TsType::TsKeywordType(tk) => {
-                let t = ts_keyword_type_to_rs(tk);
-                if let RustType::Unit = &t {
-                    nullable = true;
-                }
-                t
-            }
+            swc_ecma_ast::TsType::TsKeywordType(tk) => ts_keyword_type_to_rs(tk),
             swc_ecma_ast::TsType::TsUnionOrIntersectionType(tsuoi) => {
                 match tsuoi {
                     TsUnionOrIntersectionType::TsUnionType(tunion) => {
