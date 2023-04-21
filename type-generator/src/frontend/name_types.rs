@@ -1,14 +1,11 @@
 use std::collections::HashMap;
 
-use crate::{
-    case::detect_case,
-    ir::{
-        RustAlias, RustEnum, RustEnumMember, RustEnumMemberKind, RustSegment, RustStruct, RustType,
-        RustVariantAttr, RustVariantAttrs, SerdeVariantAttr, TypeName,
-    },
+use crate::ir::{
+    RustAlias, RustEnum, RustEnumMember, RustEnumMemberKind, RustSegment, RustStruct, RustType,
+    RustVariantAttr, RustVariantAttrs, SerdeVariantAttr, TypeName,
 };
 
-use super::{ts_prop_signature, FrontendState, Path, TypeConvertContext};
+use super::{into_pascal, ts_prop_signature, FrontendState, Path, TypeConvertContext};
 
 #[derive(Default)]
 pub struct State<'a> {
@@ -96,33 +93,19 @@ fn rename_to_valid_ident(s: &str) -> String {
         .concat()
 }
 
-fn into_pascal(path: &Path) -> String {
-    path.iter()
-        .map(|p| {
-            let mut p = p.to_string();
-            detect_case(&p).into_rename_rule().convert_to_pascal(&mut p);
-            p
-        })
-        .collect::<Vec<_>>()
-        .join("")
-}
-
 pub fn type_literal<'input>(
     st: &mut FrontendState<'input, '_>,
     type_literal: &'input swc_ecma_ast::TsTypeLit,
     ctxt: TypeConvertContext<'input>,
     lkm: &mut HashMap<String, HashMap<String, String>>,
-) -> TypeName {
+) -> RustStruct {
     let name = into_pascal(&ctxt.path);
-    let value = RustSegment::Struct(RustStruct::from_members(
+    RustStruct::from_members(
         name.to_owned(),
         type_literal
             .members
             .iter()
             .flat_map(|m| m.as_ts_property_signature())
             .flat_map(|m| ts_prop_signature(m, st, ctxt.clone(), &name, lkm)),
-    ));
-    st.segments.push(value);
-
-    TypeName::new(name)
+    )
 }

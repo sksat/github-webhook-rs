@@ -97,6 +97,9 @@ impl ToTokens for SerdeFieldAttr {
                 SerdeFieldAttr::Borrow => quote! {
                     borrow = "'a"
                 },
+                SerdeFieldAttr::Flatten => quote! {
+                    flatten
+                },
             }
             .into_iter(),
         )

@@ -147,6 +147,7 @@ impl SerdeContainerAttr {
 
 pub enum SerdeFieldAttr {
     Rename(String),
+    Flatten,
     Borrow,
 }
 
@@ -185,6 +186,23 @@ impl RenameRule {
                     .collect::<Vec<_>>()
                     .concat();
             }
+        }
+    }
+    pub fn convert_to_snake(&self, s: &mut String) {
+        match self {
+            RenameRule::PascalCase => {
+                *s = s
+                    .chars()
+                    .enumerate()
+                    .fold(String::new(), |mut snake, (i, c)| {
+                        if i > 0 && c.is_uppercase() {
+                            snake.push('_');
+                        }
+                        snake.push(c.to_ascii_lowercase());
+                        snake
+                    });
+            }
+            _ => unimplemented!(),
         }
     }
 }
@@ -240,6 +258,11 @@ impl<T> Attrs<T> {
             Self::Default => *self = Self::With(vec![a]),
             Self::With(v) => v.push(a),
         }
+    }
+    pub fn from_attr(a: T) -> Self {
+        let mut s = Self::Default;
+        s.add_attr(a);
+        s
     }
 }
 

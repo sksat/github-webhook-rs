@@ -3,9 +3,13 @@ pub mod name_types;
 use once_cell::sync::Lazy;
 use std::{borrow::Cow, collections::HashMap};
 
-use crate::ir::{
-    LiteralKeyMap, RustContainerAttrs, RustEnum, RustEnumMemberKind, RustFieldAttr, RustFieldAttrs,
-    RustMemberType, RustSegment, RustStruct, RustStructMember, RustType, SerdeFieldAttr, TypeName,
+use crate::{
+    case,
+    ir::{
+        LiteralKeyMap, RustAlias, RustContainerAttrs, RustEnum, RustEnumMemberKind, RustFieldAttr,
+        RustFieldAttrs, RustMemberType, RustSegment, RustStruct, RustStructMember, RustType,
+        SerdeFieldAttr, TypeName,
+    },
 };
 
 pub fn interface2struct<'input>(
@@ -208,97 +212,157 @@ pub fn ts_type_to_rs<'input>(
 
     let mut nullable = false;
 
-    let typ = match typ {
-        swc_ecma_ast::TsType::TsKeywordType(tk) => {
-            let t = ts_keyword_type_to_rs(tk);
-            if let RustType::Unit = &t {
-                nullable = true;
+    let typ = 't: {
+        match typ {
+            swc_ecma_ast::TsType::TsKeywordType(tk) => {
+                let t = ts_keyword_type_to_rs(tk);
+                if let RustType::Unit = &t {
+                    nullable = true;
+                }
+                t
             }
-            t
-        }
-        swc_ecma_ast::TsType::TsUnionOrIntersectionType(tsuoi) => {
-            match tsuoi {
-                TsUnionOrIntersectionType::TsUnionType(tunion) => {
-                    // nullable check
-                    let mut types: Vec<&Box<swc_ecma_ast::TsType>> = tunion.types.iter().collect();
-                    // obtain non-null types within union, judging if there is null keyword
-                    types.retain(|t| {
-                        if let Some(tkey) = t.as_ts_keyword_type() {
-                            if tkey.kind == TsKeywordTypeKind::TsNullKeyword {
-                                nullable = true;
-                                return false;
+            swc_ecma_ast::TsType::TsUnionOrIntersectionType(tsuoi) => {
+                match tsuoi {
+                    TsUnionOrIntersectionType::TsUnionType(tunion) => {
+                        // nullable check
+                        let mut types: Vec<&Box<swc_ecma_ast::TsType>> =
+                            tunion.types.iter().collect();
+                        // obtain non-null types within union, judging if there is null keyword
+                        types.retain(|t| {
+                            if let Some(tkey) = t.as_ts_keyword_type() {
+                                if tkey.kind == TsKeywordTypeKind::TsNullKeyword {
+                                    nullable = true;
+                                    return false;
+                                }
+                            }
+                            true
+                        });
+
+                        assert!(!types.is_empty());
+                        if types.len() == 1 {
+                            let (n, t) = ts_type_to_rs(st, ctxt, types[0], lkm);
+                            return (n || nullable, t);
+                        }
+
+                        // strings check: "Bot" | "User" | "Organization"
+                        if types.iter().all(|t| {
+                            t.as_ts_lit_type()
+                                .map(|t| t.lit.is_str())
+                                .unwrap_or_default()
+                        }) {
+                            let mut variants: Vec<&str> = types
+                                .iter()
+                                .map(|t| {
+                                    t.as_ts_lit_type()
+                                        .unwrap()
+                                        .lit
+                                        .as_str()
+                                        .unwrap()
+                                        .value
+                                        .as_ref()
+                                })
+                                .collect();
+                            variants.sort();
+                            let TypeConvertContext { path } = ctxt.expect("provide ctxt");
+                            let tn = name_types::string_literal_union(st, variants, &path);
+                            break 't RustType::Custom(tn);
+                            //TODO: comment strs  // {:?}", strs));
+                        }
+
+                        // other types
+                        dbg!(types);
+
+                        RustType::UnknownUnion
+                    }
+                    TsUnionOrIntersectionType::TsIntersectionType(tints) => {
+                        if tints.types.len() == 2 {
+                            let mut iter = tints.types.iter();
+                            // if types consist of type literal and type ref, create new struct with serde flatten attribute
+                            let tref = iter.next().unwrap().as_ts_type_ref();
+                            let tlit = iter.next().unwrap().as_ts_type_lit();
+                            if let (Some(tref), Some(tlit)) = (tref, tlit) {
+                                let name = tref.type_name.as_ident().unwrap().sym.as_ref();
+                                let mut str =
+                                    name_types::type_literal(st, tlit, ctxt.unwrap(), lkm);
+
+                                if str.member.iter().all(|m| m.ty.is_unknown()) {
+                                    let struct_name = str.name.to_owned();
+                                    let a = RustAlias {
+                                        name: struct_name.to_owned(),
+                                        is_borrowed: false,
+                                        ty: RustType::Custom(TypeName::new(name.to_owned())),
+                                    };
+                                    st.segments.push(RustSegment::Alias(a));
+                                    break 't RustType::Custom(TypeName::new(struct_name));
+                                } else {
+                                    // add flatten attributed field to struct
+                                    let mut field_name = name.to_owned();
+                                    case::CaseConvention::Pascal
+                                        .into_rename_rule()
+                                        .convert_to_snake(&mut field_name);
+                                    str.member.push(RustStructMember {
+                                        attr: RustFieldAttrs::from_attr(RustFieldAttr::Serde(
+                                            SerdeFieldAttr::Flatten,
+                                        )),
+                                        name: field_name,
+                                        ty: RustMemberType {
+                                            is_optional: false,
+                                            ty: RustType::Custom(TypeName::new(name.to_owned())),
+                                        },
+                                        comment: None,
+                                    });
+                                    let struct_name = str.name.to_owned();
+                                    st.segments.push(RustSegment::Struct(str));
+                                    break 't RustType::Custom(TypeName::new(struct_name));
+                                }
                             }
                         }
-                        true
-                    });
-
-                    assert!(!types.is_empty());
-                    if types.len() == 1 {
-                        let (n, t) = ts_type_to_rs(st, ctxt, types[0], lkm);
-                        return (n || nullable, t);
+                        // dbg!(tints);
+                        //todo!();
+                        RustType::UnknownIntersection
                     }
-
-                    // strings check: "Bot" | "User" | "Organization"
-                    if types.iter().all(|t| {
-                        t.as_ts_lit_type()
-                            .map(|t| t.lit.is_str())
-                            .unwrap_or_default()
-                    }) {
-                        let mut variants: Vec<&str> = types
-                            .iter()
-                            .map(|t| {
-                                t.as_ts_lit_type()
-                                    .unwrap()
-                                    .lit
-                                    .as_str()
-                                    .unwrap()
-                                    .value
-                                    .as_ref()
-                            })
-                            .collect();
-                        variants.sort();
-                        let TypeConvertContext { path } = ctxt.expect("provide ctxt");
-                        let tn = name_types::string_literal_union(st, variants, &path);
-                        return (nullable, RustType::Custom(tn));
-                        //TODO: comment strs  // {:?}", strs));
-                    }
-
-                    // other types
-                    dbg!(types);
-
-                    RustType::UnknownUnion
-                }
-                TsUnionOrIntersectionType::TsIntersectionType(_tints) => {
-                    // dbg!(tints);
-                    //todo!();
-                    RustType::UnknownIntersection
                 }
             }
-        }
-        swc_ecma_ast::TsType::TsLitType(_tslit) => RustType::UnknownLiteral,
-        swc_ecma_ast::TsType::TsTypeRef(tref) => {
-            let id = tref.type_name.as_ident().unwrap().sym.as_ref();
-            RustType::Custom(TypeName {
-                name: id.to_owned(),
-                is_borrowed: false,
-            })
-        }
-        swc_ecma_ast::TsType::TsArrayType(tarray) => {
-            let (_n, etype) = ts_type_to_rs(st, ctxt, &tarray.elem_type, lkm);
-            //format!("Vec<{etype}>")
-            RustType::Array(Box::new(etype))
-        }
-        swc_ecma_ast::TsType::TsTypeLit(tlit) => {
-            let tn = name_types::type_literal(st, tlit, ctxt.unwrap(), lkm);
+            swc_ecma_ast::TsType::TsLitType(_tslit) => RustType::UnknownLiteral,
+            swc_ecma_ast::TsType::TsTypeRef(tref) => {
+                let id = tref.type_name.as_ident().unwrap().sym.as_ref();
+                RustType::Custom(TypeName {
+                    name: id.to_owned(),
+                    is_borrowed: false,
+                })
+            }
+            swc_ecma_ast::TsType::TsArrayType(tarray) => {
+                let (_n, etype) = ts_type_to_rs(st, ctxt, &tarray.elem_type, lkm);
+                //format!("Vec<{etype}>")
+                RustType::Array(Box::new(etype))
+            }
+            swc_ecma_ast::TsType::TsTypeLit(tlit) => {
+                let s = name_types::type_literal(st, tlit, ctxt.unwrap(), lkm);
+                let name = s.name.clone();
+                st.segments.push(RustSegment::Struct(s));
 
-            RustType::Custom(tn)
-        }
-        _ => {
-            //dbg!(typ);
-            //todo!();
-            RustType::Unknown
+                RustType::Custom(TypeName::new(name))
+            }
+            _ => {
+                //dbg!(typ);
+                //todo!();
+                RustType::Unknown
+            }
         }
     };
 
     (nullable, typ)
+}
+
+pub fn into_pascal(path: &Path) -> String {
+    path.iter()
+        .map(|p| {
+            let mut p = p.to_string();
+            case::detect_case(&p)
+                .into_rename_rule()
+                .convert_to_pascal(&mut p);
+            p
+        })
+        .collect::<Vec<_>>()
+        .join("")
 }
