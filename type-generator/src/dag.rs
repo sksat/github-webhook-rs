@@ -8,7 +8,7 @@ struct DirectedAcyclicGraph<Node> {
     edges: HashMap<Node, Vec<Node>>,
 }
 
-impl<Node: Copy + Hash + Eq> DirectedAcyclicGraph<Node> {
+impl<Node: Copy + Hash + Eq + std::fmt::Debug> DirectedAcyclicGraph<Node> {
     fn new() -> Self {
         DirectedAcyclicGraph {
             nodes: HashSet::new(),
@@ -22,7 +22,7 @@ impl<Node: Copy + Hash + Eq> DirectedAcyclicGraph<Node> {
         self.edges.entry(from).or_insert(Vec::new()).push(to);
     }
 
-    fn topo_sort(&self) -> Vec<Node> {
+    fn topo_sort(&self) -> Result<Vec<Node>, Vec<Node>> {
         let mut in_degree = HashMap::new();
         for node in self.nodes.iter() {
             in_degree.insert(*node, 0);
@@ -55,10 +55,58 @@ impl<Node: Copy + Hash + Eq> DirectedAcyclicGraph<Node> {
                 }
             }
         }
-        if cfg!(debug_assertions) {
-            assert!(in_degree.values().all(|&i| i == 0), "the graph has cycle");
+        if cfg!(debug_assertions) && in_degree.values().any(|&i| i != 0) {
+            // the graph has cycle
+            return Err(self.find_cycle());
         }
-        result
+        Ok(result)
+    }
+
+    #[cfg(debug_assertions)]
+    fn find_cycle(&self) -> Vec<Node> {
+        let mut visited = HashSet::new();
+        let mut seen = HashSet::new();
+
+        for node in self.nodes.iter() {
+            if visited.contains(node) {
+                continue;
+            }
+            enum Traverse<N> {
+                Pre(N),
+                Post,
+            }
+            use Traverse::*;
+
+            let mut stack = vec![Pre(node)];
+            let mut path = Vec::new();
+            seen.clear();
+
+            while let Some(t) = stack.pop() {
+                match t {
+                    Pre(current) => {
+                        path.push(current);
+                        seen.insert(current);
+
+                        stack.push(Post);
+                        if let Some(children) = self.edges.get(current) {
+                            for child in children {
+                                if !seen.contains(child) {
+                                    stack.push(Pre(child));
+                                } else if let Some(cycle_start) =
+                                    path.iter().rposition(|&&x| x == *child)
+                                {
+                                    return path[cycle_start..].iter().map(|&&x| x).collect();
+                                }
+                            }
+                        }
+                    }
+                    Post => {
+                        visited.insert(path.pop().unwrap());
+                    }
+                }
+            }
+        }
+        unreachable!("the graph has no cycle")
     }
 }
 
@@ -66,7 +114,7 @@ pub struct CoDirectedAcyclicGraph<Node> {
     dag: DirectedAcyclicGraph<Node>,
 }
 
-impl<Node: Copy + Hash + Eq> CoDirectedAcyclicGraph<Node> {
+impl<Node: Copy + Hash + Eq + std::fmt::Debug> CoDirectedAcyclicGraph<Node> {
     pub fn new() -> Self {
         Self {
             dag: DirectedAcyclicGraph::new(),
@@ -77,12 +125,12 @@ impl<Node: Copy + Hash + Eq> CoDirectedAcyclicGraph<Node> {
         self.dag.add_edge(to, from);
     }
 
-    pub fn co_topo_sort(&self) -> Vec<Node> {
+    pub fn co_topo_sort(&self) -> Result<Vec<Node>, Vec<Node>> {
         self.dag.topo_sort()
     }
 }
 
-impl<Node: Copy + Hash + Eq> Default for CoDirectedAcyclicGraph<Node> {
+impl<Node: Copy + Hash + Eq + std::fmt::Debug> Default for CoDirectedAcyclicGraph<Node> {
     fn default() -> Self {
         Self::new()
     }
@@ -102,7 +150,7 @@ mod tests {
         dag.add_edge("C", "E");
         dag.add_edge("D", "E");
 
-        let topo_order = dag.topo_sort();
+        let topo_order = dag.topo_sort().unwrap();
         assert_eq!(topo_order, vec!["A", "C", "B", "D", "E"]);
     }
 
@@ -116,7 +164,31 @@ mod tests {
         dag.add_edge("C", "E");
         dag.add_edge("D", "E");
 
-        let topo_order = dag.co_topo_sort();
+        let topo_order = dag.co_topo_sort().unwrap();
         assert_eq!(topo_order, vec!["E", "D", "C", "B", "A"]);
+    }
+
+    #[test]
+    fn test_find_cycle() {
+        let mut graph = DirectedAcyclicGraph::new();
+        graph.add_edge(1, 2);
+        graph.add_edge(2, 3);
+        graph.add_edge(3, 4);
+        graph.add_edge(4, 2);
+
+        let cycle = graph.find_cycle();
+        assert!(
+            [vec![2, 3, 4], vec![3, 4, 2], vec![4, 2, 3],].contains(&cycle),
+            "{cycle:?}"
+        );
+
+        graph.add_edge(1, 4);
+        graph.add_edge(2, 5);
+        graph.add_edge(3, 5);
+        let cycle = graph.find_cycle();
+        assert!(
+            [vec![2, 3, 4], vec![3, 4, 2], vec![4, 2, 3],].contains(&cycle),
+            "{cycle:?}"
+        );
     }
 }

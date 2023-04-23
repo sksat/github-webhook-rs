@@ -7,7 +7,18 @@ use crate::{
 
 pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDirectedAcyclicGraph<usize>) {
     let mut decorated: HashSet<String> = HashSet::new();
-    for index in type_deps.co_topo_sort() {
+    let sorted = match type_deps.co_topo_sort() {
+        Ok(s) => s,
+        Err(cy) => {
+            let mut msg = segments.get(cy[0]).unwrap().name().to_owned();
+            for index in cy {
+                let seg = segments.get(index).unwrap().name();
+                msg.push_str(&format!("\n -> {}", seg));
+            }
+            panic!("cyclic dependency detected (this is a bug):\n{}", msg);
+        }
+    };
+    for index in sorted {
         let seg = segments.get_mut(index).unwrap();
         fn borrow_typename(
             TypeName { name, is_borrowed }: &mut TypeName,
