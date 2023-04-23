@@ -24,9 +24,20 @@ pub fn adapt_internal_tag(segment: &mut RustSegment, lkm: &LiteralKeyMap) -> Opt
             return None;
         }
         let tag_name = cand_props.keys().next().unwrap().to_owned();
-        for memb in &mut re.member {
+
+        // validate and collect tag name
+        let mut variant_names = Vec::new();
+
+        for memb in &re.member {
             let inter = &memb.kind.as_unary().unwrap().as_custom().unwrap().name;
             let variant_name = lkm.get(inter).unwrap().get(&tag_name).unwrap().to_owned();
+            if variant_names.contains(&variant_name) {
+                return None;
+            }
+            variant_names.push(variant_name);
+        }
+
+        for (memb, variant_name) in re.member.iter_mut().zip(variant_names) {
             memb.kind.name_unary(variant_name);
         }
         re.attr
