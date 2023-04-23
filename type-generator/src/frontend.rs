@@ -19,19 +19,12 @@ pub fn interface2struct<'input>(
 ) {
     let name = interface.id.sym.as_ref();
     let ibody = &interface.body.body;
+    let mut ctxt = TypeConvertContext::from_path(Path::from_iter([Cow::Borrowed(name)]));
 
     let member = ibody
         .iter()
         .map(|m| m.as_ts_property_signature().unwrap())
-        .flat_map(|prop| {
-            ts_prop_signature(
-                prop,
-                st,
-                TypeConvertContext::from_path(Path::from_iter([Cow::Borrowed(name)])),
-                name,
-                lkm,
-            )
-        })
+        .flat_map(|prop| ts_prop_signature(prop, st, &mut ctxt, name, lkm))
         .collect();
 
     let name = name.to_owned();
@@ -47,7 +40,7 @@ pub fn interface2struct<'input>(
 pub fn ts_prop_signature<'input>(
     prop: &'input swc_ecma_ast::TsPropertySignature,
     st: &mut FrontendState<'input, '_>,
-    mut ctxt: TypeConvertContext<'input>,
+    ctxt: &mut TypeConvertContext<'input>,
     name: &str,
     lkm: &mut HashMap<String, HashMap<String, String>>,
 ) -> Option<RustStructMember> {
@@ -71,9 +64,10 @@ pub fn ts_prop_signature<'input>(
         pkey = renamed;
     }
     let ptype = &prop.type_ann.as_ref().unwrap().type_ann;
-    ctxt.path.push(Cow::Borrowed(pkey));
+    let mut ctxt = ctxt.clone();
+    ctxt.projection(Cow::Borrowed(pkey));
 
-    let (is_optional2, ty) = ts_type_to_rs(st, Some(ctxt), ptype, lkm);
+    let (is_optional2, ty) = ts_type_to_rs(st, &mut Some(ctxt), ptype, lkm);
     is_optional |= is_optional2;
 
     fn extract_literal_type(ptype: &swc_ecma_ast::TsType) -> Option<&str> {
@@ -117,10 +111,12 @@ pub fn tunion2enum<'input>(
 ) {
     union_or_intersection(
         st,
-        Some(TypeConvertContext::new(
-            vec![Cow::Borrowed(name)],
+        Some(TypeConvertContext {
+            path: vec![Cow::Borrowed(name)],
+            granted_name: Some(name),
             from_alias,
-        )),
+            ..Default::default()
+        }),
         tsuoi,
         &mut false,
         lkm,
@@ -129,7 +125,7 @@ pub fn tunion2enum<'input>(
 
 fn union_or_intersection<'input>(
     st: &mut FrontendState<'input, '_>,
-    ctxt: Option<TypeConvertContext<'input>>,
+    mut ctxt: Option<TypeConvertContext<'input>>,
     tsuoi: &'input swc_ecma_ast::TsUnionOrIntersectionType,
     nullable: &mut bool,
     lkm: &mut LiteralKeyMap,
@@ -154,7 +150,7 @@ fn union_or_intersection<'input>(
 
             assert!(!types.is_empty());
             if types.len() == 1 {
-                let (n, t) = ts_type_to_rs(st, ctxt, types[0], lkm);
+                let (n, t) = ts_type_to_rs(st, &mut ctxt, types[0], lkm);
                 *nullable |= n;
                 return t;
             }
@@ -178,26 +174,27 @@ fn union_or_intersection<'input>(
                     })
                     .collect();
                 variants.sort();
-                let ct = ctxt.expect("provide ctxt");
-                let tn = name_types::string_literal_union(st, variants, &ct);
+                let ct = ctxt.as_mut().expect("provide ctxt");
+                let tn = name_types::string_literal_union(st, variants, ct);
                 return RustType::Custom(tn);
                 //TODO: comment strs  // {:?}", strs));
+            }
+            let type_convert_context = ctxt.as_mut().unwrap();
+            let mut name = type_convert_context.create_ident();
+            if !type_convert_context.from_alias {
+                name.push_str("Union");
             }
             let variants: Vec<_> = types
                 .iter()
                 .map(|t| {
-                    let (_, t) = ts_type_to_rs(st, ctxt.clone(), t, lkm);
+                    let (_, t) = ts_type_to_rs(st, &mut ctxt, t, lkm);
                     RustEnumMember {
                         attr: RustVariantAttrs::Default,
                         kind: RustEnumMemberKind::Unary(t),
                     }
                 })
                 .collect();
-            let type_convert_context = &ctxt.unwrap();
-            let mut name = type_convert_context.to_pascal();
-            if !type_convert_context.from_alias {
-                name.push_str("Union");
-            }
+
             st.segments.push(RustSegment::Enum(RustEnum {
                 attr: RustContainerAttrs::from_attr(RustStructAttr::Serde(
                     SerdeContainerAttr::Untagged,
@@ -216,7 +213,7 @@ fn union_or_intersection<'input>(
                 let tlit = iter.next().unwrap().as_ts_type_lit();
                 if let (Some(tref), Some(tlit)) = (tref, tlit) {
                     let name = tref.type_name.as_ident().unwrap().sym.as_ref();
-                    let mut str = name_types::type_literal(st, tlit, ctxt.unwrap(), lkm);
+                    let mut str = name_types::type_literal(st, tlit, &mut ctxt.unwrap(), lkm);
 
                     if str.member.iter().all(|m| m.ty.is_unknown()) {
                         let struct_name = str.name.to_owned();
@@ -278,25 +275,32 @@ fn ts_keyword_type_to_rs(typ: &swc_ecma_ast::TsKeywordType) -> RustType {
 
 pub type Path<'a> = Vec<Cow<'a, str>>;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct TypeConvertContext<'a> {
-    pub path: Path<'a>,
+    path: Path<'a>,
+    granted_name: Option<&'a str>,
     from_alias: bool,
+    /// prevent duplicate field name
+    duplicate_counter: usize,
 }
 
 impl<'a> TypeConvertContext<'a> {
-    pub fn new(path: Path<'a>, from_alias: bool) -> Self {
-        Self { path, from_alias }
-    }
-
     pub fn from_path(path: Path<'a>) -> Self {
         Self {
             path,
-            from_alias: false,
+            ..Default::default()
         }
     }
 
-    pub fn to_pascal(&self) -> String {
+    /// struct field
+    pub fn projection(&mut self, field: Cow<'a, str>) {
+        self.path.push(field);
+        self.granted_name = None;
+        self.from_alias = false;
+        self.duplicate_counter = 0;
+    }
+
+    fn to_pascal(&self) -> Vec<String> {
         self.path
             .iter()
             .map(|p| {
@@ -306,14 +310,27 @@ impl<'a> TypeConvertContext<'a> {
                     .convert_to_pascal(&mut p);
                 p
             })
-            .collect::<Vec<_>>()
-            .join("")
+            .collect()
+    }
+
+    /// create identifier from path
+    pub fn create_ident(&mut self) -> String {
+        if let Some(name) = self.granted_name.take() {
+            return name.to_owned();
+        }
+        let mut v = self.to_pascal();
+        if self.from_alias || self.duplicate_counter != 0 {
+            let suffix = self.duplicate_counter + self.from_alias as usize;
+            v.push(suffix.to_string());
+        }
+        self.duplicate_counter += 1;
+        v.concat()
     }
 }
 
 pub fn ts_type_to_rs<'input>(
     st: &mut FrontendState<'input, '_>,
-    ctxt: Option<TypeConvertContext<'input>>,
+    ctxt: &mut Option<TypeConvertContext<'input>>,
     typ: &'input swc_ecma_ast::TsType,
     lkm: &mut HashMap<String, HashMap<String, String>>,
 ) -> (bool, RustType) {
@@ -322,7 +339,7 @@ pub fn ts_type_to_rs<'input>(
     let typ = match typ {
         swc_ecma_ast::TsType::TsKeywordType(tk) => ts_keyword_type_to_rs(tk),
         swc_ecma_ast::TsType::TsUnionOrIntersectionType(tsuoi) => {
-            union_or_intersection(st, ctxt, tsuoi, &mut nullable, lkm)
+            union_or_intersection(st, ctxt.to_owned(), tsuoi, &mut nullable, lkm)
         }
         swc_ecma_ast::TsType::TsLitType(_tslit) => RustType::UnknownLiteral,
         swc_ecma_ast::TsType::TsTypeRef(tref) => {
@@ -338,7 +355,7 @@ pub fn ts_type_to_rs<'input>(
             RustType::Array(Box::new(etype))
         }
         swc_ecma_ast::TsType::TsTypeLit(tlit) => {
-            let s = name_types::type_literal(st, tlit, ctxt.unwrap(), lkm);
+            let s = name_types::type_literal(st, tlit, ctxt.as_mut().unwrap(), lkm);
             let name = s.name.clone();
             st.segments.push(RustSegment::Struct(s));
 

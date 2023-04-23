@@ -16,9 +16,9 @@ pub struct State<'a> {
 pub fn string_literal_union<'input>(
     st: &mut FrontendState<'input, '_>,
     variants: Vec<&'input str>,
-    path: &TypeConvertContext,
+    path: &mut TypeConvertContext,
 ) -> TypeName {
-    let name = path.to_pascal();
+    let name = path.create_ident();
 
     TypeName::new(match st.name_types.literal_map.get(&variants) {
         Some(s) => {
@@ -96,16 +96,16 @@ fn rename_to_valid_ident(s: &str) -> String {
 pub fn type_literal<'input>(
     st: &mut FrontendState<'input, '_>,
     type_literal: &'input swc_ecma_ast::TsTypeLit,
-    ctxt: TypeConvertContext<'input>,
+    ctxt: &mut TypeConvertContext<'input>,
     lkm: &mut HashMap<String, HashMap<String, String>>,
 ) -> RustStruct {
-    let name = ctxt.to_pascal();
+    let name = ctxt.create_ident();
     RustStruct::from_members(
         name.to_owned(),
         type_literal
             .members
             .iter()
             .flat_map(|m| m.as_ts_property_signature())
-            .flat_map(|m| ts_prop_signature(m, st, ctxt.clone(), &name, lkm)),
+            .flat_map(|m| ts_prop_signature(m, st, ctxt, &name, lkm)),
     )
 }
