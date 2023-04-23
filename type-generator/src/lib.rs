@@ -81,11 +81,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                         st.segments.push(a);
                     }
                     swc_ecma_ast::TsType::TsUnionOrIntersectionType(tuoi) => {
-                        let tunion = tuoi.as_ts_union_type().unwrap();
-
-                        let renum = frontend::tunion2enum(ident, tunion);
-                        let e = RustSegment::Enum(renum);
-                        st.segments.push(e);
+                        frontend::tunion2enum(&mut st, ident, tuoi, &mut lkm, true);
                     }
                     swc_ecma_ast::TsType::TsKeywordType(..)
                     | swc_ecma_ast::TsType::TsArrayType(..) => {

@@ -27,9 +27,7 @@ pub fn interface2struct<'input>(
             ts_prop_signature(
                 prop,
                 st,
-                TypeConvertContext {
-                    path: Path::from_iter([Cow::Borrowed(name)]),
-                },
+                TypeConvertContext::from_path(Path::from_iter([Cow::Borrowed(name)])),
                 name,
                 lkm,
             )
@@ -110,68 +108,152 @@ pub fn ts_prop_signature<'input>(
     //};
 }
 
-pub fn tunion2enum(name: &str, tunion: &swc_ecma_ast::TsUnionType) -> RustEnum {
-    let mut member = Vec::new();
-    for t in &tunion.types {
-        match &**t {
-            swc_ecma_ast::TsType::TsTypeRef(tref) => {
-                // export type Hoge = Fuga | Fuge;
-                let i = &tref.type_name.as_ident().unwrap();
-                let sym = i.sym.to_string();
-                member.push(
-                    RustEnumMemberKind::Unary(RustType::Custom(TypeName {
-                        name: sym,
-                        is_borrowed: false,
-                    }))
-                    .into(),
-                );
-                //write!(out, "{}({})", &i.sym, &i.sym)?;
-            }
-            swc_ecma_ast::TsType::TsLitType(tlit) => {
-                // export type BranchProtectionRuleEnforcementLevel =
-                //   | "off" | "none_admins" | "everyone";
-                let s = match tlit.lit {
-                    swc_ecma_ast::TsLit::Str(ref s) => s.value.as_ref().to_string(),
-                    _ => todo!(),
-                };
-                //write!(out, "{}", s)?;
-                member.push(RustEnumMemberKind::Nullary(s).into());
-            }
-            swc_ecma_ast::TsType::TsArrayType(_tarray) => {
-                // export WebhookEvents = | ( | "a" | "b" | "c" )[] | ["*"];
-                // (| "a" | "b" | "c")[] <-
-                //dbg!(tarray);
-            }
-            swc_ecma_ast::TsType::TsTupleType(_ttuple) => {
-                // export WebhookEvents = | ( | "a" | "b" | "c" )[] | ["*"];
-                // ["*"] <-
-                //dbg!(ttuple);
-            }
-            swc_ecma_ast::TsType::TsTypeLit(_ttlit) => {
-                // export PullRequestReviewRequestRemovedEvent =
-                // | {
-                //     action: "review_request_removed";
-                //     requested_reviewer: User;
-                //    }
-                //  | {
-                //     action: "review_request_removed";
-                //     requested_reviewer: Team;
-                //  };
-                //dbg!(ttlit);
-            }
-            _ => {
-                dbg!(t);
-                unreachable!()
-            }
-        }
-        //writeln!(out, ",")?;
-    }
+pub fn tunion2enum<'input>(
+    st: &mut FrontendState<'input, '_>,
+    name: &'input str,
+    tsuoi: &'input swc_ecma_ast::TsUnionOrIntersectionType,
+    lkm: &mut LiteralKeyMap,
+    from_alias: bool,
+) {
+    union_or_intersection(
+        st,
+        Some(TypeConvertContext::new(
+            vec![Cow::Borrowed(name)],
+            from_alias,
+        )),
+        tsuoi,
+        &mut false,
+        lkm,
+    );
+}
 
-    RustEnum {
-        attr: RustContainerAttrs::Default,
-        name: name.to_string(),
-        is_borrowed: false,
-        member,
+fn union_or_intersection<'input>(
+    st: &mut FrontendState<'input, '_>,
+    ctxt: Option<TypeConvertContext<'input>>,
+    tsuoi: &'input swc_ecma_ast::TsUnionOrIntersectionType,
+    nullable: &mut bool,
+    lkm: &mut LiteralKeyMap,
+) -> RustType {
+    use swc_ecma_ast::TsKeywordTypeKind;
+    use swc_ecma_ast::TsUnionOrIntersectionType;
+
+    match tsuoi {
+        TsUnionOrIntersectionType::TsUnionType(tunion) => {
+            // nullable check
+            let mut types: Vec<&Box<swc_ecma_ast::TsType>> = tunion.types.iter().collect();
+            // obtain non-null types within union, judging if there is null keyword
+            types.retain(|t| {
+                if let Some(tkey) = t.as_ts_keyword_type() {
+                    if tkey.kind == TsKeywordTypeKind::TsNullKeyword {
+                        *nullable = true;
+                        return false;
+                    }
+                }
+                true
+            });
+
+            assert!(!types.is_empty());
+            if types.len() == 1 {
+                let (n, t) = ts_type_to_rs(st, ctxt, types[0], lkm);
+                *nullable |= n;
+                return t;
+            }
+
+            // strings check: "Bot" | "User" | "Organization"
+            if types.iter().all(|t| {
+                t.as_ts_lit_type()
+                    .map(|t| t.lit.is_str())
+                    .unwrap_or_default()
+            }) {
+                let mut variants: Vec<&str> = types
+                    .iter()
+                    .map(|t| {
+                        t.as_ts_lit_type()
+                            .unwrap()
+                            .lit
+                            .as_str()
+                            .unwrap()
+                            .value
+                            .as_ref()
+                    })
+                    .collect();
+                variants.sort();
+                let ct = ctxt.expect("provide ctxt");
+                let tn = name_types::string_literal_union(st, variants, &ct);
+                return RustType::Custom(tn);
+                //TODO: comment strs  // {:?}", strs));
+            }
+            let variants: Vec<_> = types
+                .iter()
+                .map(|t| {
+                    let (_, t) = ts_type_to_rs(st, ctxt.clone(), t, lkm);
+                    RustEnumMember {
+                        attr: RustVariantAttrs::Default,
+                        kind: RustEnumMemberKind::Unary(t),
+                    }
+                })
+                .collect();
+            let type_convert_context = &ctxt.unwrap();
+            let mut name = type_convert_context.to_pascal();
+            if !type_convert_context.from_alias {
+                name.push_str("Union");
+            }
+            st.segments.push(RustSegment::Enum(RustEnum {
+                attr: RustContainerAttrs::from_attr(RustStructAttr::Serde(
+                    SerdeContainerAttr::Untagged,
+                )),
+                name: name.to_owned(),
+                is_borrowed: false,
+                member: variants,
+            }));
+            RustType::Custom(TypeName::new(name))
+        }
+        TsUnionOrIntersectionType::TsIntersectionType(tints) => {
+            if tints.types.len() == 2 {
+                let mut iter = tints.types.iter();
+                // if types consist of type literal and type ref, create new struct with serde flatten attribute
+                let tref = iter.next().unwrap().as_ts_type_ref();
+                let tlit = iter.next().unwrap().as_ts_type_lit();
+                if let (Some(tref), Some(tlit)) = (tref, tlit) {
+                    let name = tref.type_name.as_ident().unwrap().sym.as_ref();
+                    let mut str = name_types::type_literal(st, tlit, ctxt.unwrap(), lkm);
+
+                    if str.member.iter().all(|m| m.ty.is_unknown()) {
+                        let struct_name = str.name.to_owned();
+                        let a = RustAlias {
+                            name: struct_name.to_owned(),
+                            is_borrowed: false,
+                            ty: RustType::Custom(TypeName::new(name.to_owned())),
+                        };
+                        st.segments.push(RustSegment::Alias(a));
+                        return RustType::Custom(TypeName::new(struct_name));
+                    } else {
+                        // add flatten attributed field to struct
+                        let mut field_name = name.to_owned();
+                        case::CaseConvention::Pascal
+                            .into_rename_rule()
+                            .convert_to_snake(&mut field_name);
+                        str.member.push(RustStructMember {
+                            attr: RustFieldAttrs::from_attr(RustFieldAttr::Serde(
+                                SerdeFieldAttr::Flatten,
+                            )),
+                            name: field_name,
+                            ty: RustMemberType {
+                                is_optional: false,
+                                ty: RustType::Custom(TypeName::new(name.to_owned())),
+                            },
+                            comment: None,
+                        });
+                        let struct_name = str.name.to_owned();
+                        st.segments.push(RustSegment::Struct(str));
+                        return RustType::Custom(TypeName::new(struct_name));
+                    }
+                }
+            }
+            // dbg!(tints);
+            //todo!();
+            RustType::UnknownIntersection
+        }
     }
 }
 
@@ -199,6 +281,34 @@ pub type Path<'a> = Vec<Cow<'a, str>>;
 #[derive(Clone)]
 pub struct TypeConvertContext<'a> {
     pub path: Path<'a>,
+    from_alias: bool,
+}
+
+impl<'a> TypeConvertContext<'a> {
+    pub fn new(path: Path<'a>, from_alias: bool) -> Self {
+        Self { path, from_alias }
+    }
+
+    pub fn from_path(path: Path<'a>) -> Self {
+        Self {
+            path,
+            from_alias: false,
+        }
+    }
+
+    pub fn to_pascal(&self) -> String {
+        self.path
+            .iter()
+            .map(|p| {
+                let mut p = p.to_string();
+                case::detect_case(&p)
+                    .into_rename_rule()
+                    .convert_to_pascal(&mut p);
+                p
+            })
+            .collect::<Vec<_>>()
+            .join("")
+    }
 }
 
 pub fn ts_type_to_rs<'input>(
@@ -207,172 +317,39 @@ pub fn ts_type_to_rs<'input>(
     typ: &'input swc_ecma_ast::TsType,
     lkm: &mut HashMap<String, HashMap<String, String>>,
 ) -> (bool, RustType) {
-    use swc_ecma_ast::TsKeywordTypeKind;
-    use swc_ecma_ast::TsUnionOrIntersectionType;
-
     let mut nullable = false;
 
-    let typ = 't: {
-        match typ {
-            swc_ecma_ast::TsType::TsKeywordType(tk) => ts_keyword_type_to_rs(tk),
-            swc_ecma_ast::TsType::TsUnionOrIntersectionType(tsuoi) => {
-                match tsuoi {
-                    TsUnionOrIntersectionType::TsUnionType(tunion) => {
-                        // nullable check
-                        let mut types: Vec<&Box<swc_ecma_ast::TsType>> =
-                            tunion.types.iter().collect();
-                        // obtain non-null types within union, judging if there is null keyword
-                        types.retain(|t| {
-                            if let Some(tkey) = t.as_ts_keyword_type() {
-                                if tkey.kind == TsKeywordTypeKind::TsNullKeyword {
-                                    nullable = true;
-                                    return false;
-                                }
-                            }
-                            true
-                        });
+    let typ = match typ {
+        swc_ecma_ast::TsType::TsKeywordType(tk) => ts_keyword_type_to_rs(tk),
+        swc_ecma_ast::TsType::TsUnionOrIntersectionType(tsuoi) => {
+            union_or_intersection(st, ctxt, tsuoi, &mut nullable, lkm)
+        }
+        swc_ecma_ast::TsType::TsLitType(_tslit) => RustType::UnknownLiteral,
+        swc_ecma_ast::TsType::TsTypeRef(tref) => {
+            let id = tref.type_name.as_ident().unwrap().sym.as_ref();
+            RustType::Custom(TypeName {
+                name: id.to_owned(),
+                is_borrowed: false,
+            })
+        }
+        swc_ecma_ast::TsType::TsArrayType(tarray) => {
+            let (_n, etype) = ts_type_to_rs(st, ctxt, &tarray.elem_type, lkm);
+            //format!("Vec<{etype}>")
+            RustType::Array(Box::new(etype))
+        }
+        swc_ecma_ast::TsType::TsTypeLit(tlit) => {
+            let s = name_types::type_literal(st, tlit, ctxt.unwrap(), lkm);
+            let name = s.name.clone();
+            st.segments.push(RustSegment::Struct(s));
 
-                        assert!(!types.is_empty());
-                        if types.len() == 1 {
-                            let (n, t) = ts_type_to_rs(st, ctxt, types[0], lkm);
-                            return (n || nullable, t);
-                        }
-
-                        // strings check: "Bot" | "User" | "Organization"
-                        if types.iter().all(|t| {
-                            t.as_ts_lit_type()
-                                .map(|t| t.lit.is_str())
-                                .unwrap_or_default()
-                        }) {
-                            let mut variants: Vec<&str> = types
-                                .iter()
-                                .map(|t| {
-                                    t.as_ts_lit_type()
-                                        .unwrap()
-                                        .lit
-                                        .as_str()
-                                        .unwrap()
-                                        .value
-                                        .as_ref()
-                                })
-                                .collect();
-                            variants.sort();
-                            let TypeConvertContext { path } = ctxt.expect("provide ctxt");
-                            let tn = name_types::string_literal_union(st, variants, &path);
-                            break 't RustType::Custom(tn);
-                            //TODO: comment strs  // {:?}", strs));
-                        }
-                        let variants: Vec<_> = types
-                            .iter()
-                            .map(|t| {
-                                let (_, t) = ts_type_to_rs(st, ctxt.clone(), t, lkm);
-                                RustEnumMember {
-                                    attr: RustVariantAttrs::Default,
-                                    kind: RustEnumMemberKind::Unary(t),
-                                }
-                            })
-                            .collect();
-                        let mut name = into_pascal(&ctxt.unwrap().path);
-                        name.push_str("Union");
-                        st.segments.push(RustSegment::Enum(RustEnum {
-                            attr: RustContainerAttrs::from_attr(RustStructAttr::Serde(
-                                SerdeContainerAttr::Untagged,
-                            )),
-                            name: name.to_owned(),
-                            is_borrowed: false,
-                            member: variants,
-                        }));
-                        RustType::Custom(TypeName::new(name))
-                    }
-                    TsUnionOrIntersectionType::TsIntersectionType(tints) => {
-                        if tints.types.len() == 2 {
-                            let mut iter = tints.types.iter();
-                            // if types consist of type literal and type ref, create new struct with serde flatten attribute
-                            let tref = iter.next().unwrap().as_ts_type_ref();
-                            let tlit = iter.next().unwrap().as_ts_type_lit();
-                            if let (Some(tref), Some(tlit)) = (tref, tlit) {
-                                let name = tref.type_name.as_ident().unwrap().sym.as_ref();
-                                let mut str =
-                                    name_types::type_literal(st, tlit, ctxt.unwrap(), lkm);
-
-                                if str.member.iter().all(|m| m.ty.is_unknown()) {
-                                    let struct_name = str.name.to_owned();
-                                    let a = RustAlias {
-                                        name: struct_name.to_owned(),
-                                        is_borrowed: false,
-                                        ty: RustType::Custom(TypeName::new(name.to_owned())),
-                                    };
-                                    st.segments.push(RustSegment::Alias(a));
-                                    break 't RustType::Custom(TypeName::new(struct_name));
-                                } else {
-                                    // add flatten attributed field to struct
-                                    let mut field_name = name.to_owned();
-                                    case::CaseConvention::Pascal
-                                        .into_rename_rule()
-                                        .convert_to_snake(&mut field_name);
-                                    str.member.push(RustStructMember {
-                                        attr: RustFieldAttrs::from_attr(RustFieldAttr::Serde(
-                                            SerdeFieldAttr::Flatten,
-                                        )),
-                                        name: field_name,
-                                        ty: RustMemberType {
-                                            is_optional: false,
-                                            ty: RustType::Custom(TypeName::new(name.to_owned())),
-                                        },
-                                        comment: None,
-                                    });
-                                    let struct_name = str.name.to_owned();
-                                    st.segments.push(RustSegment::Struct(str));
-                                    break 't RustType::Custom(TypeName::new(struct_name));
-                                }
-                            }
-                        }
-                        // dbg!(tints);
-                        //todo!();
-                        RustType::UnknownIntersection
-                    }
-                }
-            }
-            swc_ecma_ast::TsType::TsLitType(_tslit) => RustType::UnknownLiteral,
-            swc_ecma_ast::TsType::TsTypeRef(tref) => {
-                let id = tref.type_name.as_ident().unwrap().sym.as_ref();
-                RustType::Custom(TypeName {
-                    name: id.to_owned(),
-                    is_borrowed: false,
-                })
-            }
-            swc_ecma_ast::TsType::TsArrayType(tarray) => {
-                let (_n, etype) = ts_type_to_rs(st, ctxt, &tarray.elem_type, lkm);
-                //format!("Vec<{etype}>")
-                RustType::Array(Box::new(etype))
-            }
-            swc_ecma_ast::TsType::TsTypeLit(tlit) => {
-                let s = name_types::type_literal(st, tlit, ctxt.unwrap(), lkm);
-                let name = s.name.clone();
-                st.segments.push(RustSegment::Struct(s));
-
-                RustType::Custom(TypeName::new(name))
-            }
-            _ => {
-                //dbg!(typ);
-                //todo!();
-                RustType::Unknown
-            }
+            RustType::Custom(TypeName::new(name))
+        }
+        _ => {
+            //dbg!(typ);
+            //todo!();
+            RustType::Unknown
         }
     };
 
     (nullable, typ)
-}
-
-pub fn into_pascal(path: &Path) -> String {
-    path.iter()
-        .map(|p| {
-            let mut p = p.to_string();
-            case::detect_case(&p)
-                .into_rename_rule()
-                .convert_to_pascal(&mut p);
-            p
-        })
-        .collect::<Vec<_>>()
-        .join("")
 }

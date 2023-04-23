@@ -5,7 +5,7 @@ use crate::ir::{
     RustVariantAttr, RustVariantAttrs, SerdeVariantAttr, TypeName,
 };
 
-use super::{into_pascal, ts_prop_signature, FrontendState, Path, TypeConvertContext};
+use super::{ts_prop_signature, FrontendState, TypeConvertContext};
 
 #[derive(Default)]
 pub struct State<'a> {
@@ -16,9 +16,9 @@ pub struct State<'a> {
 pub fn string_literal_union<'input>(
     st: &mut FrontendState<'input, '_>,
     variants: Vec<&'input str>,
-    path: &Path,
+    path: &TypeConvertContext,
 ) -> TypeName {
-    let name = into_pascal(path);
+    let name = path.to_pascal();
 
     TypeName::new(match st.name_types.literal_map.get(&variants) {
         Some(s) => {
@@ -99,7 +99,7 @@ pub fn type_literal<'input>(
     ctxt: TypeConvertContext<'input>,
     lkm: &mut HashMap<String, HashMap<String, String>>,
 ) -> RustStruct {
-    let name = into_pascal(&ctxt.path);
+    let name = ctxt.to_pascal();
     RustStruct::from_members(
         name.to_owned(),
         type_literal
