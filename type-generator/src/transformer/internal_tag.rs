@@ -41,6 +41,8 @@ pub fn adapt_internal_tag(segment: &mut RustSegment, lkm: &LiteralKeyMap) -> Opt
             memb.kind.name_unary(variant_name);
         }
         re.attr
+            .retain(|r| !matches!(r, RustStructAttr::Serde(SerdeContainerAttr::Untagged)));
+        re.attr
             .add_attr(RustStructAttr::Serde(SerdeContainerAttr::Tag(tag_name)));
     }
     Some(())

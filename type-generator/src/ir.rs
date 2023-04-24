@@ -276,6 +276,10 @@ impl<T> Attrs<T> {
     pub fn as_inner(&self) -> &Vec<T> {
         &self.0
     }
+
+    pub fn retain<F: FnMut(&T) -> bool>(&mut self, f: F) {
+        self.0.retain(f)
+    }
 }
 
 pub enum RustFieldAttr {
