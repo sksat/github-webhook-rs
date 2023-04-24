@@ -120,7 +120,7 @@ pub struct RustStruct {
 impl RustStruct {
     pub fn from_members(name: String, members: impl Iterator<Item = RustStructMember>) -> Self {
         Self {
-            attr: RustContainerAttrs::Default,
+            attr: RustContainerAttrs::new(),
             name,
             is_borrowed: false,
             member: members.collect(),
@@ -129,18 +129,6 @@ impl RustStruct {
 }
 
 pub type RustContainerAttrs = Attrs<RustStructAttr>;
-
-impl RustContainerAttrs {
-    pub fn is_tagged_enum(&self) -> bool {
-        match self {
-            RustContainerAttrs::Default => false,
-            RustContainerAttrs::With(attrs) => attrs
-                .iter()
-                .filter_map(|attr| attr.as_serde())
-                .any(SerdeContainerAttr::is_tag),
-        }
-    }
-}
 
 pub enum RustStructAttr {
     Serde(SerdeContainerAttr),
@@ -252,7 +240,7 @@ pub struct RustEnum {
 impl RustEnum {
     pub fn from_members(name: String, members: impl Iterator<Item = RustEnumMember>) -> Self {
         Self {
-            attr: RustContainerAttrs::Default,
+            attr: RustContainerAttrs::new(),
             name,
             is_borrowed: false,
             member: members.collect(),
@@ -270,23 +258,23 @@ pub struct RustStructMember {
 pub type RustFieldAttrs = Attrs<RustFieldAttr>;
 
 #[derive(Default)]
-pub enum Attrs<Field> {
-    #[default]
-    Default,
-    With(Vec<Field>),
-}
+pub struct Attrs<Field>(Vec<Field>);
 
 impl<T> Attrs<T> {
     pub fn add_attr(&mut self, a: T) {
-        match self {
-            Self::Default => *self = Self::With(vec![a]),
-            Self::With(v) => v.push(a),
-        }
+        self.0.push(a)
     }
     pub fn from_attr(a: T) -> Self {
-        let mut s = Self::Default;
+        let mut s = Self::new();
         s.add_attr(a);
         s
+    }
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    pub fn as_inner(&self) -> &Vec<T> {
+        &self.0
     }
 }
 
@@ -313,7 +301,7 @@ pub struct RustEnumMember {
 impl From<RustEnumMemberKind> for RustEnumMember {
     fn from(value: RustEnumMemberKind) -> Self {
         Self {
-            attr: RustVariantAttrs::Default,
+            attr: RustVariantAttrs::new(),
             kind: value,
         }
     }

@@ -2,10 +2,9 @@ use proc_macro2::{TokenStream, TokenTree};
 use quote::{quote, ToTokens, TokenStreamExt};
 
 use crate::ir::{
-    Attrs, RustAlias, RustContainerAttrs, RustEnum, RustEnumMember, RustEnumMemberKind,
-    RustFieldAttr, RustFieldAttrs, RustMemberType, RustSegment, RustStruct, RustStructAttr,
-    RustStructMember, RustType, RustVariantAttr, SerdeContainerAttr, SerdeFieldAttr,
-    SerdeVariantAttr, TypeName,
+    Attrs, RustAlias, RustEnum, RustEnumMember, RustEnumMemberKind, RustFieldAttr, RustMemberType,
+    RustSegment, RustStruct, RustStructAttr, RustStructMember, RustType, RustVariantAttr,
+    SerdeContainerAttr, SerdeFieldAttr, SerdeVariantAttr, TypeName,
 };
 
 macro_rules! id {
@@ -200,23 +199,15 @@ impl ToTokens for RustStructMember {
                     /* unknown type */
                 }
             } else {
-                let mut attrs = TokenStream::new();
+                let mut c = TokenStream::new();
                 if let Some(comment) = comment {
-                    attrs = quote! {
+                    c = quote! {
                         #[doc=#comment]
                     }
                 }
-                match attr {
-                    RustFieldAttrs::Default => (),
-                    RustFieldAttrs::With(w) => {
-                        attrs = quote! {
-                            #attrs
-                            #(#w)*
-                        }
-                    }
-                }
                 quote! {
-                    #attrs
+                    #c
+                    #attr
                     pub #name: #ty,
                 }
             }
@@ -234,18 +225,13 @@ impl ToTokens for RustStruct {
             is_borrowed,
         } = self;
         let name = id!(name);
-        tokens.extend(
-            match attr {
-                RustContainerAttrs::Default => quote! {
-                    #[derive(Debug, Deserialize)]
-                },
-                RustContainerAttrs::With(w) => quote! {
-                    #[derive(Debug, Deserialize)]
-                    #(#w)*
-                },
+        tokens.extend({
+            quote! {
+                #[derive(Debug, Deserialize)]
+                #attr
             }
-            .into_iter(),
-        );
+            .into_iter()
+        });
         let p = if *is_borrowed {
             quote! { <'a> }
         } else {
@@ -273,7 +259,9 @@ impl ToTokens for RustEnum {
         } = self;
         let name = id!(name);
         tokens.extend(
-            if attr.is_tagged_enum() || member.iter().all(|m| m.kind.is_nullary()) {
+            if attr.as_inner().iter().any(|a| a.as_serde().is_some())
+                || member.iter().all(|m| m.kind.is_nullary())
+            {
                 quote! {
                     #[derive(Debug, Deserialize)]
                 }
@@ -284,17 +272,6 @@ impl ToTokens for RustEnum {
             }
             .into_iter(),
         );
-        match attr {
-            RustContainerAttrs::Default => (),
-            RustContainerAttrs::With(w) => {
-                tokens.extend(
-                    quote! {
-                        #(#w)*
-                    }
-                    .into_iter(),
-                );
-            }
-        }
 
         let p = if *is_borrowed {
             quote! { <'a> }
@@ -303,6 +280,7 @@ impl ToTokens for RustEnum {
         };
         tokens.extend(
             quote! {
+                #attr
                 pub enum #name #p {
                     #(#member)*
                 }
@@ -362,14 +340,14 @@ impl ToTokens for RustEnumMemberKind {
 
 impl<Field: ToTokens> ToTokens for Attrs<Field> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        match self {
-            Attrs::Default => (),
-            Attrs::With(ws) => tokens.extend(
+        if !self.as_inner().is_empty() {
+            let ws = self.as_inner();
+            tokens.extend(
                 quote! {
                     #(#ws)*
                 }
                 .into_iter(),
-            ),
+            )
         }
     }
 }

@@ -49,7 +49,7 @@ fn create_enum(st: &mut FrontendState, name: &String, vs: &[&str]) {
         name.to_owned(),
         vs.iter().map(|&v| {
             let renamed = rename_to_valid_ident(v);
-            let mut attr = RustVariantAttrs::Default;
+            let mut attr = RustVariantAttrs::new();
             if v != renamed {
                 attr.add_attr(RustVariantAttr::Serde(SerdeVariantAttr::Rename(
                     v.to_owned(),

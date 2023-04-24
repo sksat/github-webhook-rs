@@ -31,7 +31,7 @@ pub fn interface2struct<'input>(
 
     let name = name.to_owned();
     let s = RustStruct {
-        attr: RustContainerAttrs::Default,
+        attr: RustContainerAttrs::new(),
         name,
         is_borrowed: false,
         member,
@@ -55,7 +55,7 @@ pub fn ts_prop_signature<'input>(
         }
         _ => unreachable!(),
     };
-    let mut attr = RustFieldAttrs::Default;
+    let mut attr = RustFieldAttrs::new();
     // avoid conflict to Rust reserved word
     static RENAME_RULES: Lazy<HashMap<&str, &str>> =
         Lazy::new(|| HashMap::from_iter([("type", "type_"), ("ref", "ref_"), ("self", "self_")]));
@@ -224,7 +224,7 @@ fn union_or_intersection<'input>(
                 .map(|t| {
                     let (_, t) = ts_type_to_rs(st, &mut ctxt, t, lkm);
                     RustEnumMember {
-                        attr: RustVariantAttrs::Default,
+                        attr: RustVariantAttrs::new(),
                         kind: RustEnumMemberKind::Unary(t),
                     }
                 })
