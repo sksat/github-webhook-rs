@@ -193,26 +193,22 @@ impl ToTokens for RustStructMember {
         } = self;
         let name = id!(name);
 
-        tokens.extend(
-            if self.ty.is_unknown() {
-                quote! {
-                    /* unknown type */
+        if !self.ty.is_unknown() {
+            let mut c = TokenStream::new();
+            if let Some(comment) = comment {
+                c = quote! {
+                    #[doc=#comment]
                 }
-            } else {
-                let mut c = TokenStream::new();
-                if let Some(comment) = comment {
-                    c = quote! {
-                        #[doc=#comment]
-                    }
-                }
+            }
+            tokens.extend(
                 quote! {
                     #c
                     #attr
                     pub #name: #ty,
                 }
-            }
-            .into_iter(),
-        );
+                .into_iter(),
+            );
+        }
     }
 }
 
@@ -321,16 +317,30 @@ impl ToTokens for RustEnumMemberKind {
                     quote!(#v,)
                 }
                 RustEnumMemberKind::Unary(a) => {
-                    let n = a.to_ident();
-                    let n = id!(n);
-                    quote!(#n(#a),)
+                    if a.is_unknown() {
+                        quote! {
+                            #[serde(other)]
+                            Other,
+                        }
+                    } else {
+                        let n = a.to_ident();
+                        let n = id!(n);
+                        quote!(#n(#a),)
+                    }
                 }
                 RustEnumMemberKind::UnaryNamed {
                     variant_name,
                     type_name,
                 } => {
-                    let variant_name = id!(variant_name);
-                    quote!(#variant_name(#type_name),)
+                    if type_name.is_unknown() {
+                        quote! {
+                            #[serde(other)]
+                            Other,
+                        }
+                    } else {
+                        let variant_name = id!(variant_name);
+                        quote!(#variant_name(#type_name),)
+                    }
                 }
             }
             .into_iter(),
