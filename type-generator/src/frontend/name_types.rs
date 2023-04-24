@@ -95,7 +95,7 @@ fn rename_to_valid_ident(s: &str) -> String {
 
 pub fn type_literal<'input>(
     st: &mut FrontendState<'input, '_>,
-    type_literal: &'input swc_ecma_ast::TsTypeLit,
+    type_literal: impl Iterator<Item = &'input swc_ecma_ast::TsTypeElement>,
     ctxt: &mut TypeConvertContext<'input>,
     lkm: &mut HashMap<String, HashMap<String, String>>,
 ) -> RustStruct {
@@ -103,8 +103,7 @@ pub fn type_literal<'input>(
     RustStruct::from_members(
         name.to_owned(),
         type_literal
-            .members
-            .iter()
+            .into_iter()
             .flat_map(|m| m.as_ts_property_signature())
             .flat_map(|m| ts_prop_signature(m, st, ctxt, &name, lkm)),
     )

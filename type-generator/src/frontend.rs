@@ -1,3 +1,4 @@
+pub mod merge_union_type_lits;
 pub mod name_types;
 
 use once_cell::sync::Lazy;
@@ -5,6 +6,7 @@ use std::{borrow::Cow, collections::HashMap};
 
 use crate::{
     case,
+    frontend::merge_union_type_lits::Merged,
     ir::{
         LiteralKeyMap, RustAlias, RustContainerAttrs, RustEnum, RustEnumMember, RustEnumMemberKind,
         RustFieldAttr, RustFieldAttrs, RustMemberType, RustSegment, RustStruct, RustStructAttr,
@@ -167,6 +169,51 @@ fn union_or_intersection<'input>(
                 return RustType::Custom(tn);
                 //TODO: comment strs  // {:?}", strs));
             }
+
+            if types.len() >= 2 {
+                if let Some(variants) = types
+                    .iter()
+                    .map(|t| t.as_ts_type_lit())
+                    .collect::<Option<Vec<_>>>()
+                {
+                    let ctxt = ctxt.as_mut().unwrap();
+                    let Merged {
+                        intersection,
+                        diffs,
+                    } = merge_union_type_lits::merge_union_type_lits(&variants);
+                    let mut s = name_types::type_literal(st, intersection.into_iter(), ctxt, lkm);
+                    let member = diffs
+                        .into_iter()
+                        .map(|d| {
+                            let s = name_types::type_literal(st, d.into_iter(), ctxt, lkm);
+                            RustEnumMemberKind::Unary(st.push_segment(RustSegment::Struct(s)))
+                                .into()
+                        })
+                        .collect();
+                    let e = RustEnum {
+                        name: ctxt.create_ident(),
+                        attr: RustContainerAttrs::from_attr(RustStructAttr::Serde(
+                            SerdeContainerAttr::Untagged,
+                        )),
+                        is_borrowed: false,
+                        member,
+                    };
+                    let ty = st.push_segment(RustSegment::Enum(e));
+                    s.member.push(RustStructMember {
+                        ty: RustMemberType {
+                            ty,
+                            is_optional: false,
+                        },
+                        name: "distinct".to_owned(),
+                        attr: RustFieldAttrs::from_attr(RustFieldAttr::Serde(
+                            SerdeFieldAttr::Flatten,
+                        )),
+                        comment: None,
+                    });
+                    return st.push_segment(RustSegment::Struct(s));
+                }
+            }
+
             let type_convert_context = ctxt.as_mut().unwrap();
             let mut name = type_convert_context.create_ident();
             if !type_convert_context.from_alias {
@@ -201,7 +248,8 @@ fn union_or_intersection<'input>(
                 let tlit = iter.next().unwrap().as_ts_type_lit();
                 if let (Some(tref), Some(tlit)) = (tref, tlit) {
                     let name = tref.type_name.as_ident().unwrap().sym.as_ref();
-                    let mut str = name_types::type_literal(st, tlit, &mut ctxt.unwrap(), lkm);
+                    let mut str =
+                        name_types::type_literal(st, tlit.members.iter(), &mut ctxt.unwrap(), lkm);
 
                     if str.member.iter().all(|m| m.ty.is_unknown()) {
                         let struct_name = str.name.to_owned();
@@ -245,6 +293,14 @@ fn union_or_intersection<'input>(
 pub struct FrontendState<'input, 'output> {
     pub segments: &'output mut Vec<RustSegment>,
     pub name_types: name_types::State<'input>,
+}
+
+impl<'input, 'output> FrontendState<'input, 'output> {
+    pub fn push_segment(&mut self, value: RustSegment) -> RustType {
+        let name = value.name().to_owned();
+        self.segments.push(value);
+        RustType::Custom(TypeName::new(name))
+    }
 }
 
 fn ts_keyword_type_to_rs(typ: &swc_ecma_ast::TsKeywordType) -> RustType {
@@ -343,7 +399,7 @@ pub fn ts_type_to_rs<'input>(
             RustType::Array(Box::new(etype))
         }
         swc_ecma_ast::TsType::TsTypeLit(tlit) => {
-            let s = name_types::type_literal(st, tlit, ctxt.as_mut().unwrap(), lkm);
+            let s = name_types::type_literal(st, tlit.members.iter(), ctxt.as_mut().unwrap(), lkm);
             let name = s.name.clone();
             st.segments.push(RustSegment::Struct(s));
 
