@@ -190,15 +190,14 @@ fn union_or_intersection<'input>(
                                 .into()
                         })
                         .collect();
-                    let e = RustEnum {
-                        name: ctxt.create_ident(),
+                    let ty = st.push_segment(RustSegment::Enum(RustEnum {
+                        name: ctxt.create_ident_with(Some(vec!["DistinctUnion".to_string()])),
                         attr: RustContainerAttrs::from_attr(RustStructAttr::Serde(
                             SerdeContainerAttr::Untagged,
                         )),
                         is_borrowed: false,
                         member,
-                    };
-                    let ty = st.push_segment(RustSegment::Enum(e));
+                    }));
                     s.member.push(RustStructMember {
                         ty: RustMemberType {
                             ty,
@@ -359,15 +358,23 @@ impl<'a> TypeConvertContext<'a> {
 
     /// create identifier from path
     pub fn create_ident(&mut self) -> String {
+        self.create_ident_with(None)
+    }
+
+    pub fn create_ident_with(&mut self, additional: Option<Vec<String>>) -> String {
         if let Some(name) = self.granted_name.take() {
             return name.to_owned();
         }
         let mut v = self.to_pascal();
-        if self.from_alias || self.duplicate_counter != 0 {
-            let suffix = self.duplicate_counter + self.from_alias as usize;
-            v.push(suffix.to_string());
+        if let Some(additional) = additional {
+            v.extend(additional);
+        } else {
+            if self.from_alias || self.duplicate_counter != 0 {
+                let suffix = self.duplicate_counter + self.from_alias as usize;
+                v.push(suffix.to_string());
+            }
+            self.duplicate_counter += 1;
         }
-        self.duplicate_counter += 1;
         v.concat()
     }
 }
