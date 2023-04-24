@@ -156,23 +156,11 @@ fn union_or_intersection<'input>(
             }
 
             // strings check: "Bot" | "User" | "Organization"
-            if types.iter().all(|t| {
-                t.as_ts_lit_type()
-                    .map(|t| t.lit.is_str())
-                    .unwrap_or_default()
-            }) {
-                let mut variants: Vec<&str> = types
-                    .iter()
-                    .map(|t| {
-                        t.as_ts_lit_type()
-                            .unwrap()
-                            .lit
-                            .as_str()
-                            .unwrap()
-                            .value
-                            .as_ref()
-                    })
-                    .collect();
+            if let Some(mut variants) = types
+                .iter()
+                .map(|t| Some(t.as_ts_lit_type()?.lit.as_str()?.value.as_ref()))
+                .collect::<Option<Vec<&str>>>()
+            {
                 variants.sort();
                 let ct = ctxt.as_mut().expect("provide ctxt");
                 let tn = name_types::string_literal_union(st, variants, ct);
