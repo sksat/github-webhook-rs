@@ -489,5 +489,5 @@ pub fn strip_docs(comment: &str) -> RustComment {
     let comment = comment.trim_start_matches("*\n * ");
     let comment = comment.trim_start();
     let comment = comment.trim_end_matches("\n ");
-    RustComment(comment.split("\n * ").collect::<Vec<_>>().concat())
+    RustComment(comment.split("\n * ").collect::<Vec<_>>().join(" "))
 }
