@@ -47,7 +47,6 @@ pub enum RustType {
     Unknown,
     UnknownLiteral,
     UnknownIntersection,
-    UnknownUnion,
 }
 
 impl RustType {
@@ -62,16 +61,12 @@ impl RustType {
             RustType::Unknown => "Unknown",
             RustType::UnknownLiteral => "UnknownLiteral",
             RustType::UnknownIntersection => "UnknownIntersection",
-            RustType::UnknownUnion => "UnknownUnion",
         }
     }
 
     pub fn is_unknown(&self) -> bool {
         match &self {
-            RustType::Unknown
-            | RustType::UnknownLiteral
-            | RustType::UnknownIntersection
-            | RustType::UnknownUnion => true,
+            RustType::Unknown | RustType::UnknownLiteral | RustType::UnknownIntersection => true,
             RustType::Array(t) => t.is_unknown(),
             _ => false,
         }

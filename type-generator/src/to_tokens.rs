@@ -159,7 +159,6 @@ impl ToTokens for RustType {
             RustType::Unknown => "Unknown",
             RustType::UnknownLiteral => "UnknownLiteral",
             RustType::UnknownIntersection => "UnknownIntersection",
-            RustType::UnknownUnion => "UnknownUnion",
         };
         tokens.append(TokenTree::Ident(id!(s)));
     }
