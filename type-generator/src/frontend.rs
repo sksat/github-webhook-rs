@@ -443,11 +443,16 @@ impl<'a> TypeConvertContext<'a> {
 pub fn ts_type_to_rs<'input>(
     st: &mut FrontendState<'input, '_>,
     ctxt: &mut Option<TypeConvertContext<'input>>,
-    typ: &'input swc_ecma_ast::TsType,
+    mut typ: &'input swc_ecma_ast::TsType,
     comment: Option<RustComment>,
     lkm: &mut HashMap<String, HashMap<String, String>>,
 ) -> (bool, RustType) {
     let mut nullable = false;
+
+    // peel off parenthesis (that only exist for precedence)
+    while let swc_ecma_ast::TsType::TsParenthesizedType(t) = typ {
+        typ = &*t.type_ann;
+    }
 
     let typ = match typ {
         swc_ecma_ast::TsType::TsKeywordType(tk) => ts_keyword_type_to_rs(tk),
@@ -479,6 +484,14 @@ pub fn ts_type_to_rs<'input>(
             st.segments.push(RustSegment::Struct(s));
 
             RustType::Custom(TypeName::new(name))
+        }
+        swc_ecma_ast::TsType::TsTupleType(t) => {
+            // empty array type is treated as tuple type with 0 elements
+            if t.elem_types.is_empty() {
+                RustType::Unit
+            } else {
+                RustType::Unknown
+            }
         }
         _ => {
             //dbg!(typ);
