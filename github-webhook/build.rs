@@ -11,7 +11,7 @@ fn main() -> Result<()> {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     let pkg_version = env::var("CARGO_PKG_VERSION").unwrap();
-    let pkg_version: Vec<&str> = pkg_version.split("+").collect();
+    let pkg_version: Vec<&str> = pkg_version.split('+').collect();
     let version = if pkg_version.len() == 2 {
         pkg_version[1]
     } else {
@@ -23,7 +23,7 @@ fn main() -> Result<()> {
     let url =
         format!("https://raw.githubusercontent.com/{repo}/{version}/payload-types/schema.d.ts");
 
-    let body = reqwest::blocking::get(&url)?.text()?;
+    let body = reqwest::blocking::get(url)?.text()?;
     let dts_file = out_path.join("schema.d.ts");
     std::fs::write(&dts_file, body)?;
 
