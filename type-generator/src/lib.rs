@@ -115,6 +115,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
         transformer::adapt_internal_tag(segment, &lkm);
         transformer::adapt_rename_all(segment);
     }
+    transformer::flatten_type(&mut segments);
     let type_deps = type_deps(&segments);
     transformer::adapt_borrow(&mut segments, &type_deps);
 

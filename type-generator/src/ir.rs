@@ -33,7 +33,7 @@ impl TypeName {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum RustType {
     String {
         is_borrowed: bool,
@@ -44,6 +44,7 @@ pub enum RustType {
     Array(Box<RustType>),
     Map(Box<Self>, Box<Self>),
     /// `()`
+    #[default]
     Unit,
     Unknown,
     UnknownLiteral,
@@ -62,7 +63,7 @@ impl RustType {
             RustType::Unknown => "Unknown",
             RustType::UnknownLiteral => "UnknownLiteral",
             RustType::UnknownIntersection => "UnknownIntersection",
-            RustType::Map(..) => panic!("do not call this method on RustType::Map"),
+            RustType::Map(..) => "Map",
         }
     }
 
@@ -175,6 +176,7 @@ impl SerdeContainerAttr {
     }
 }
 
+#[derive(PartialEq)]
 pub enum SerdeFieldAttr {
     Rename(String),
     Flatten,
@@ -300,6 +302,7 @@ impl<T> Attrs<T> {
     }
 }
 
+#[derive(PartialEq)]
 pub enum RustFieldAttr {
     Serde(SerdeFieldAttr),
 }
