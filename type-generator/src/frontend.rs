@@ -49,16 +49,20 @@ pub fn ts_prop_signature<'input>(
     let mut is_optional = prop.optional;
     let mut pkey: &str = match &*prop.key {
         swc_ecma_ast::Expr::Ident(pkey) => &pkey.sym,
-        swc_ecma_ast::Expr::Lit(swc_ecma_ast::Lit::Str(_pkey)) => {
-            // TODO: use &pkey.value.as_ref()
-            return None;
-        }
+        swc_ecma_ast::Expr::Lit(swc_ecma_ast::Lit::Str(k)) => &k.value,
         _ => unreachable!(),
     };
     let mut attr = RustFieldAttrs::new();
     // avoid conflict to Rust reserved word
-    static RENAME_RULES: Lazy<HashMap<&str, &str>> =
-        Lazy::new(|| HashMap::from_iter([("type", "type_"), ("ref", "ref_"), ("self", "self_")]));
+    static RENAME_RULES: Lazy<HashMap<&str, &str>> = Lazy::new(|| {
+        HashMap::from_iter([
+            ("type", "type_"),
+            ("ref", "ref_"),
+            ("self", "self_"),
+            ("+1", "plus_1"),
+            ("-1", "minus_1"),
+        ])
+    });
     if let Some(renamed) = RENAME_RULES.get(pkey) {
         attr.add_attr(RustFieldAttr::Serde(SerdeFieldAttr::Rename(
             pkey.to_owned(),
