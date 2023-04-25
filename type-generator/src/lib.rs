@@ -23,7 +23,7 @@ use swc_ecma_parser::{lexer::Lexer, Capturing, Parser, StringInput, Syntax};
 use ir::{type_deps, LiteralKeyMap, RustAlias, RustSegment, RustType, TypeName};
 
 pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
-    let module = extract_module(dts_file);
+    let ExtractedModule { module, comments } = extract_module(dts_file);
 
     let mut segments = Vec::new();
 
@@ -39,6 +39,9 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
     for b in &module.body {
         let b = b.as_module_decl().unwrap();
         let b = b.as_export_decl().expect("module have only exports");
+        let comment = comments.with_leading(b.span.lo, |cs| {
+            cs.last().map(|c| frontend::strip_docs(&c.text))
+        });
         let decl = &b.decl;
 
         //dbg!(&decl);
@@ -50,7 +53,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                 //    _ => {}
                 //}
 
-                frontend::interface2struct(&mut st, interface, &mut lkm);
+                frontend::interface2struct(&mut st, interface, comment, &mut lkm);
             }
             swc_ecma_ast::Decl::TsTypeAlias(talias) => {
                 let ident = talias.id.sym.as_ref();
@@ -60,6 +63,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                     st.segments.push(RustSegment::Alias(RustAlias {
                         name: "WebhookEvents".to_owned(),
                         is_borrowed: true,
+                        comment,
                         ty: RustType::Array(Box::new(RustType::String { is_borrowed: true })),
                     }));
                     continue; //return Err(anyhow!("lazy skip"));
@@ -73,6 +77,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                         let a = RustSegment::Alias(RustAlias {
                             name: ident.to_owned(),
                             is_borrowed: false,
+                            comment,
                             ty: RustType::Custom(TypeName {
                                 name: rhs,
                                 is_borrowed: false,
@@ -81,15 +86,17 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                         st.segments.push(a);
                     }
                     swc_ecma_ast::TsType::TsUnionOrIntersectionType(tuoi) => {
-                        frontend::tunion2enum(&mut st, ident, tuoi, &mut lkm, true);
+                        frontend::tunion2enum(&mut st, ident, tuoi, comment, &mut lkm, true);
                     }
                     swc_ecma_ast::TsType::TsKeywordType(..)
                     | swc_ecma_ast::TsType::TsArrayType(..) => {
                         // export type Hoge = number;
-                        let typ = frontend::ts_type_to_rs(&mut st, &mut None, typ, &mut lkm).1;
+                        let typ =
+                            frontend::ts_type_to_rs(&mut st, &mut None, typ, None, &mut lkm).1;
                         let a = RustSegment::Alias(RustAlias {
                             name: ident.to_owned(),
                             is_borrowed: false,
+                            comment,
                             ty: typ,
                         });
                         st.segments.push(a);
@@ -125,7 +132,12 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
         .collect()
 }
 
-fn extract_module(dts_file: &PathBuf) -> swc_ecma_ast::Module {
+struct ExtractedModule {
+    module: swc_ecma_ast::Module,
+    comments: swc_common::comments::SingleThreadedComments,
+}
+
+fn extract_module(dts_file: &PathBuf) -> ExtractedModule {
     let cm: Lrc<SourceMap> = Default::default();
     let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
 
@@ -134,11 +146,12 @@ fn extract_module(dts_file: &PathBuf) -> swc_ecma_ast::Module {
         .load_file(Path::new(dts_file))
         .unwrap_or_else(|_| panic!("failed to load {}", &dts_file.display()));
 
+    let comments = swc_common::comments::SingleThreadedComments::default();
     let lexer = Lexer::new(
         Syntax::Typescript(Default::default()),
         Default::default(),
         StringInput::from(&*fm),
-        None,
+        Some(&comments),
     );
 
     let capturing = Capturing::new(lexer);
@@ -149,10 +162,13 @@ fn extract_module(dts_file: &PathBuf) -> swc_ecma_ast::Module {
         e.into_diagnostic(&handler).emit();
     }
 
-    parser
-        .parse_typescript_module()
-        .map_err(|e| e.into_diagnostic(&handler).emit())
-        .expect("Failed to parse module.")
+    ExtractedModule {
+        module: parser
+            .parse_module()
+            .map_err(|e| e.into_diagnostic(&handler).emit())
+            .expect("Failed to parse module."),
+        comments,
+    }
 }
 
 #[cfg(test)]
@@ -161,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_module() {
-        let module = extract_module(&PathBuf::from("test.ts"));
+        let ExtractedModule { module, .. } = extract_module(&PathBuf::from("test.ts"));
 
         let ice = module.body[1]
             .as_module_decl()

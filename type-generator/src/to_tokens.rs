@@ -2,9 +2,9 @@ use proc_macro2::{TokenStream, TokenTree};
 use quote::{quote, ToTokens, TokenStreamExt};
 
 use crate::ir::{
-    Attrs, RustAlias, RustEnum, RustEnumMember, RustEnumMemberKind, RustFieldAttr, RustMemberType,
-    RustSegment, RustStruct, RustStructAttr, RustStructMember, RustType, RustVariantAttr,
-    SerdeContainerAttr, SerdeFieldAttr, SerdeVariantAttr, TypeName,
+    Attrs, RustAlias, RustComment, RustEnum, RustEnumMember, RustEnumMemberKind, RustFieldAttr,
+    RustMemberType, RustSegment, RustStruct, RustStructAttr, RustStructMember, RustType,
+    RustVariantAttr, SerdeContainerAttr, SerdeFieldAttr, SerdeVariantAttr, TypeName,
 };
 
 macro_rules! id {
@@ -203,15 +203,9 @@ impl ToTokens for RustStructMember {
         let name = id!(name);
 
         if !self.ty.is_unknown() {
-            let mut c = TokenStream::new();
-            if let Some(comment) = comment {
-                c = quote! {
-                    #[doc=#comment]
-                }
-            }
             tokens.extend(
                 quote! {
-                    #c
+                    #comment
                     #attr
                     pub #name: #ty,
                 }
@@ -221,11 +215,25 @@ impl ToTokens for RustStructMember {
     }
 }
 
+impl ToTokens for RustComment {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let c = &self.0;
+
+        tokens.extend(
+            quote! {
+                #[doc=#c]
+            }
+            .into_iter(),
+        );
+    }
+}
+
 impl ToTokens for RustStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self {
             name,
             member,
+            comment,
             attr,
             is_borrowed,
         } = self;
@@ -234,6 +242,7 @@ impl ToTokens for RustStruct {
             quote! {
                 #[derive(Debug, Deserialize)]
                 #attr
+                #comment
             }
             .into_iter()
         });
@@ -259,6 +268,7 @@ impl ToTokens for RustEnum {
         let Self {
             name,
             member,
+            comment,
             attr,
             is_borrowed,
         } = self;
@@ -286,6 +296,7 @@ impl ToTokens for RustEnum {
         tokens.extend(
             quote! {
                 #attr
+                #comment
                 pub enum #name #p {
                     #(#member)*
                 }
@@ -300,6 +311,7 @@ impl ToTokens for RustAlias {
         let Self {
             name,
             ty: typ,
+            comment,
             is_borrowed,
         } = self;
         let ident = id!(name);
@@ -310,6 +322,7 @@ impl ToTokens for RustAlias {
         };
         tokens.extend(
             quote! {
+                #comment
                 pub type #ident #p = #typ;
             }
             .into_iter(),

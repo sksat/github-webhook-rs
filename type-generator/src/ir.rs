@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use crate::dag::CoDirectedAcyclicGraph;
 
+pub struct RustComment(pub String);
+
 pub enum RustSegment {
     Struct(RustStruct),
     Enum(RustEnum),
@@ -132,15 +134,21 @@ impl RustType {
 pub struct RustStruct {
     pub attr: RustContainerAttrs,
     pub name: String,
+    pub comment: Option<RustComment>,
     pub is_borrowed: bool,
     pub member: Vec<RustStructMember>,
 }
 
 impl RustStruct {
-    pub fn from_members(name: String, members: impl Iterator<Item = RustStructMember>) -> Self {
+    pub fn from_members(
+        name: String,
+        comment: Option<RustComment>,
+        members: impl Iterator<Item = RustStructMember>,
+    ) -> Self {
         Self {
             attr: RustContainerAttrs::new(),
             name,
+            comment,
             is_borrowed: false,
             member: members.collect(),
         }
@@ -253,15 +261,21 @@ impl ToString for RenameRule {
 pub struct RustEnum {
     pub attr: RustContainerAttrs,
     pub name: String,
+    pub comment: Option<RustComment>,
     pub is_borrowed: bool,
     pub member: Vec<RustEnumMember>,
 }
 
 impl RustEnum {
-    pub fn from_members(name: String, members: impl Iterator<Item = RustEnumMember>) -> Self {
+    pub fn from_members(
+        name: String,
+        comment: Option<RustComment>,
+        members: impl Iterator<Item = RustEnumMember>,
+    ) -> Self {
         Self {
             attr: RustContainerAttrs::new(),
             name,
+            comment,
             is_borrowed: false,
             member: members.collect(),
         }
@@ -272,7 +286,7 @@ pub struct RustStructMember {
     pub attr: RustFieldAttrs,
     pub name: String,
     pub ty: RustMemberType,
-    pub comment: Option<String>,
+    pub comment: Option<RustComment>,
 }
 
 pub type RustFieldAttrs = Attrs<RustFieldAttr>;
@@ -397,6 +411,7 @@ pub enum RustVariantAttr {
 pub struct RustAlias {
     pub name: String,
     pub is_borrowed: bool,
+    pub comment: Option<RustComment>,
     pub ty: RustType,
 }
 
