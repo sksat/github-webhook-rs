@@ -68,10 +68,11 @@ impl RustType {
 
     pub fn is_unknown(&self) -> bool {
         match &self {
-            RustType::Unknown | RustType::UnknownLiteral | RustType::UnknownIntersection => true,
+            RustType::UnknownLiteral | RustType::UnknownIntersection => true,
             RustType::Array(t) => t.is_unknown(),
             RustType::Map(t1, t2) => t1.is_unknown() || t2.is_unknown(),
-            RustType::String { .. }
+            RustType::Unknown
+            | RustType::String { .. }
             | RustType::Number
             | RustType::Boolean
             | RustType::Custom(_)

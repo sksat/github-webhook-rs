@@ -156,7 +156,8 @@ impl ToTokens for RustType {
                 )));
                 return;
             }
-            RustType::Unknown => "Unknown",
+            // serde_json::Value
+            RustType::Unknown => "Value",
             RustType::UnknownLiteral => "UnknownLiteral",
             RustType::UnknownIntersection => "UnknownIntersection",
             RustType::Map(t1, t2) => {
