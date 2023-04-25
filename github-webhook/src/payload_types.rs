@@ -2,16 +2,11 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(dead_code)]
+#![allow(clippy::large_enum_variant)]
 
 use serde::Deserialize;
+use serde_json::Value;
 
-#[derive(Debug, Deserialize)]
-pub struct WebhookEvents {}
-
-#[derive(Debug, Deserialize)]
-pub struct PullRequestReviewRequestRemovedEvent {}
-
-#[derive(Debug, Deserialize)]
-pub struct PullRequestReviewRequestedEvent {}
+use std::collections::HashMap;
 
 include!(concat!(env!("OUT_DIR"), "/types.rs"));
