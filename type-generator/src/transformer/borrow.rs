@@ -63,12 +63,10 @@ pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDirectedAcyclicG
                 if did_borrow {
                     if !visible {
                         for mem in &mut s.member {
-                            if let Some(tn) = mem.ty.ty.as_custom() {
-                                if tn.is_borrowed {
-                                    mem.attr
-                                        .add_attr(RustFieldAttr::Serde(SerdeFieldAttr::Borrow));
-                                    break;
-                                }
+                            if mem.ty.ty.is_borrowed() {
+                                mem.attr
+                                    .add_attr(RustFieldAttr::Serde(SerdeFieldAttr::Borrow));
+                                break;
                             }
                         }
                     }

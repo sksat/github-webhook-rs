@@ -70,7 +70,27 @@ impl RustType {
         match &self {
             RustType::Unknown | RustType::UnknownLiteral | RustType::UnknownIntersection => true,
             RustType::Array(t) => t.is_unknown(),
-            _ => false,
+            RustType::Map(t1, t2) => t1.is_unknown() || t2.is_unknown(),
+            RustType::String { .. }
+            | RustType::Number
+            | RustType::Boolean
+            | RustType::Custom(_)
+            | RustType::Unit => false,
+        }
+    }
+
+    pub fn is_borrowed(&self) -> bool {
+        match self {
+            RustType::String { is_borrowed } => *is_borrowed,
+            RustType::Custom(t) => t.is_borrowed,
+            RustType::Array(t) => t.is_borrowed(),
+            RustType::Map(t1, t2) => t1.is_borrowed() || t2.is_borrowed(),
+            RustType::Number
+            | RustType::Boolean
+            | RustType::Unit
+            | RustType::Unknown
+            | RustType::UnknownLiteral
+            | RustType::UnknownIntersection => false,
         }
     }
 

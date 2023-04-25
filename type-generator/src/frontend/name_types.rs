@@ -5,7 +5,7 @@ use crate::ir::{
     RustVariantAttr, RustVariantAttrs, SerdeVariantAttr, TypeName,
 };
 
-use super::{ts_prop_signature, FrontendState, TypeConvertContext};
+use super::{ts_index_signature, ts_prop_signature, FrontendState, TypeConvertContext};
 
 #[derive(Default)]
 pub struct State<'a> {
@@ -102,9 +102,14 @@ pub fn type_literal<'input>(
     let name = ctxt.create_ident();
     RustStruct::from_members(
         name.to_owned(),
-        type_literal
-            .into_iter()
-            .flat_map(|m| m.as_ts_property_signature())
-            .flat_map(|m| ts_prop_signature(m, st, ctxt, &name, lkm)),
+        type_literal.into_iter().flat_map(|m| match m {
+            swc_ecma_ast::TsTypeElement::TsPropertySignature(p) => {
+                ts_prop_signature(p, st, ctxt, &name, lkm)
+            }
+            swc_ecma_ast::TsTypeElement::TsIndexSignature(i) => {
+                Some(ts_index_signature(i, st, ctxt, lkm))
+            }
+            _ => None,
+        }),
     )
 }

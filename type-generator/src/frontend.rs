@@ -104,6 +104,36 @@ pub fn ts_prop_signature<'input>(
     //};
 }
 
+pub fn ts_index_signature<'input>(
+    index: &'input swc_ecma_ast::TsIndexSignature,
+    st: &mut FrontendState<'input, '_>,
+    ctxt: &mut TypeConvertContext<'input>,
+    lkm: &mut HashMap<String, HashMap<String, String>>,
+) -> RustStructMember {
+    assert!(index.params.len() == 1);
+    let param = index.params.get(0).unwrap();
+    let ident = param.as_ident().expect("key is string");
+    let ctxt = ctxt.clone();
+    let (_, ty) = ts_type_to_rs(
+        st,
+        &mut Some(ctxt),
+        &ident.type_ann.as_ref().unwrap().type_ann,
+        lkm,
+    );
+    RustStructMember {
+        ty: RustMemberType {
+            ty: RustType::Map(
+                Box::new(RustType::String { is_borrowed: false }),
+                Box::new(ty),
+            ),
+            is_optional: false,
+        },
+        name: ident.sym.to_string(),
+        attr: RustFieldAttrs::from_attr(RustFieldAttr::Serde(SerdeFieldAttr::Flatten)),
+        comment: None,
+    }
+}
+
 pub fn tunion2enum<'input>(
     st: &mut FrontendState<'input, '_>,
     name: &'input str,
