@@ -2,7 +2,10 @@ use std::collections::HashSet;
 
 use crate::{
     dag::CoDirectedAcyclicGraph,
-    ir::{RustFieldAttr, RustSegment, RustType, SerdeFieldAttr, TypeName},
+    ir::{
+        RustFieldAttr, RustSegment, RustType, RustVariantAttr, SerdeFieldAttr, SerdeVariantAttr,
+        TypeName,
+    },
 };
 
 pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDirectedAcyclicGraph<usize>) {
@@ -75,12 +78,25 @@ pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDirectedAcyclicG
                 }
             }
             RustSegment::Enum(e) => {
+                let mut visible = false;
                 for mem in &mut e.member {
                     if let Some(t) = mem.kind.as_type_mut() {
                         borrow_type(t, &mut did_borrow, &decorated);
+                        visible |= t.is_string();
                     }
                 }
                 if did_borrow {
+                    if !visible {
+                        for mem in &mut e.member {
+                            if let Some(t) = mem.kind.as_type() {
+                                if t.is_borrowed() {
+                                    mem.attr
+                                        .add_attr(RustVariantAttr::Serde(SerdeVariantAttr::Borrow));
+                                    break;
+                                }
+                            }
+                        }
+                    }
                     e.is_borrowed = true;
                     decorated.insert(e.name.to_owned());
                 }

@@ -193,6 +193,7 @@ pub enum SerdeFieldAttr {
 
 pub enum SerdeVariantAttr {
     Rename(String),
+    Borrow,
 }
 
 pub enum RenameRule {

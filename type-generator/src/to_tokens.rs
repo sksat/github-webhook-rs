@@ -341,7 +341,6 @@ impl ToTokens for RustEnumMemberKind {
                 RustEnumMemberKind::Unary(a) => {
                     if a.is_unknown() {
                         quote! {
-                            #[serde(other)]
                             Other,
                         }
                     } else {
@@ -356,7 +355,6 @@ impl ToTokens for RustEnumMemberKind {
                 } => {
                     if type_name.is_unknown() {
                         quote! {
-                            #[serde(other)]
                             Other,
                         }
                     } else {
@@ -416,6 +414,9 @@ impl ToTokens for SerdeVariantAttr {
             match self {
                 SerdeVariantAttr::Rename(s) => quote! {
                     rename = #s
+                },
+                SerdeVariantAttr::Borrow => quote! {
+                    borrow = "'a"
                 },
             }
             .into_iter(),
