@@ -42,6 +42,7 @@ pub enum RustType {
     Boolean,
     Custom(TypeName),
     Array(Box<RustType>),
+    Map(Box<Self>, Box<Self>),
     /// `()`
     Unit,
     Unknown,
@@ -61,6 +62,7 @@ impl RustType {
             RustType::Unknown => "Unknown",
             RustType::UnknownLiteral => "UnknownLiteral",
             RustType::UnknownIntersection => "UnknownIntersection",
+            RustType::Map(..) => panic!("do not call this method on RustType::Map"),
         }
     }
 

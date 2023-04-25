@@ -46,6 +46,10 @@ pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDirectedAcyclicG
                 RustType::Unknown => (),
                 RustType::UnknownLiteral => (),
                 RustType::UnknownIntersection => (),
+                RustType::Map(t1, t2) => {
+                    borrow_type(t1, did_borrow, decorated);
+                    borrow_type(t2, did_borrow, decorated);
+                }
             }
         }
         let mut did_borrow = false;

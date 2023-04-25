@@ -159,6 +159,15 @@ impl ToTokens for RustType {
             RustType::Unknown => "Unknown",
             RustType::UnknownLiteral => "UnknownLiteral",
             RustType::UnknownIntersection => "UnknownIntersection",
+            RustType::Map(t1, t2) => {
+                tokens.extend(
+                    quote! {
+                        HashMap<#t1, #t2>
+                    }
+                    .into_iter(),
+                );
+                return;
+            }
         };
         tokens.append(TokenTree::Ident(id!(s)));
     }
