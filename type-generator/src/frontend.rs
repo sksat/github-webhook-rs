@@ -113,19 +113,22 @@ pub fn ts_index_signature<'input>(
     assert!(index.params.len() == 1);
     let param = index.params.get(0).unwrap();
     let ident = param.as_ident().expect("key is string");
-    let ctxt = ctxt.clone();
-    let (_, ty) = ts_type_to_rs(
+    let mut ctxt = Some(ctxt.clone());
+    let (_, key_ty) = ts_type_to_rs(
         st,
-        &mut Some(ctxt),
+        &mut ctxt,
         &ident.type_ann.as_ref().unwrap().type_ann,
+        lkm,
+    );
+    let (_, value_ty) = ts_type_to_rs(
+        st,
+        &mut ctxt,
+        &index.type_ann.as_ref().unwrap().type_ann,
         lkm,
     );
     RustStructMember {
         ty: RustMemberType {
-            ty: RustType::Map(
-                Box::new(RustType::String { is_borrowed: false }),
-                Box::new(ty),
-            ),
+            ty: RustType::Map(Box::new(key_ty), Box::new(value_ty)),
             is_optional: false,
         },
         name: ident.sym.to_string(),
