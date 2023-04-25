@@ -114,7 +114,7 @@ pub fn type_literal<'input>(
         comment,
         type_literal.into_iter().flat_map(|m| match m {
             swc_ecma_ast::TsTypeElement::TsPropertySignature(p) => {
-                ts_prop_signature(p, None, st, ctxt, &name, lkm)
+                Some(ts_prop_signature(p, st, ctxt, &name, lkm))
             }
             swc_ecma_ast::TsTypeElement::TsIndexSignature(i) => {
                 Some(ts_index_signature(i, None, st, ctxt, lkm))

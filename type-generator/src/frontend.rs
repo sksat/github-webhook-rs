@@ -28,7 +28,7 @@ pub fn interface2struct<'input>(
     let member = ibody
         .iter()
         .map(|m| m.as_ts_property_signature().unwrap())
-        .flat_map(|prop| ts_prop_signature(prop, None, st, &mut ctxt, name, lkm))
+        .map(|prop| ts_prop_signature(prop, st, &mut ctxt, name, lkm))
         .collect();
 
     let name = name.to_owned();
@@ -44,12 +44,12 @@ pub fn interface2struct<'input>(
 
 pub fn ts_prop_signature<'input>(
     prop: &'input swc_ecma_ast::TsPropertySignature,
-    comment: Option<RustComment>,
     st: &mut FrontendState<'input, '_>,
     ctxt: &mut TypeConvertContext<'input>,
     name: &str,
     lkm: &mut HashMap<String, HashMap<String, String>>,
-) -> Option<RustStructMember> {
+) -> RustStructMember {
+    let comment = st.get_comment(prop.span.lo);
     let mut is_optional = prop.optional;
     let mut pkey: &str = match &*prop.key {
         swc_ecma_ast::Expr::Ident(pkey) => &pkey.sym,
@@ -77,7 +77,7 @@ pub fn ts_prop_signature<'input>(
     let mut ctxt = ctxt.clone();
     ctxt.projection(Cow::Borrowed(pkey));
 
-    let (is_optional2, ty) = ts_type_to_rs(st, &mut Some(ctxt), ptype, comment, lkm);
+    let (is_optional2, ty) = ts_type_to_rs(st, &mut Some(ctxt), ptype, None, lkm);
     is_optional |= is_optional2;
 
     fn extract_literal_type(ptype: &swc_ecma_ast::TsType) -> Option<&str> {
@@ -93,12 +93,12 @@ pub fn ts_prop_signature<'input>(
                 .to_owned(),
         );
     }
-    Some(RustStructMember {
+    RustStructMember {
         ty: RustMemberType { ty, is_optional },
         name: pkey.to_string(),
         attr,
-        comment: None,
-    })
+        comment,
+    }
     //dbg!(prop);
 
     //let pkey = if let Some(pkey) = &prop.key.as_ident() {
@@ -347,6 +347,7 @@ fn union_or_intersection<'input>(
 
 pub struct FrontendState<'input, 'output> {
     pub segments: &'output mut Vec<RustSegment>,
+    pub comments: &'input swc_common::comments::SingleThreadedComments,
     pub name_types: name_types::State<'input>,
 }
 
@@ -355,6 +356,10 @@ impl<'input, 'output> FrontendState<'input, 'output> {
         let name = value.name().to_owned();
         self.segments.push(value);
         RustType::Custom(TypeName::new(name))
+    }
+    pub fn get_comment(&self, pos: swc_common::BytePos) -> Option<RustComment> {
+        self.comments
+            .with_leading(pos, |cs| cs.last().map(|c| strip_docs(&c.text)))
     }
 }
 
@@ -486,8 +491,14 @@ pub fn ts_type_to_rs<'input>(
 }
 
 pub fn strip_docs(comment: &str) -> RustComment {
-    let comment = comment.trim_start_matches("*\n * ");
+    let comment = comment.trim_start_matches('*');
     let comment = comment.trim_start();
-    let comment = comment.trim_end_matches("\n ");
-    RustComment(comment.split("\n * ").collect::<Vec<_>>().join(" "))
+    let comment = comment.trim_end();
+    RustComment(
+        comment
+            .split('\n')
+            .map(|s| s.trim_start().trim_start_matches("* "))
+            .collect::<Vec<_>>()
+            .join(" "),
+    )
 }

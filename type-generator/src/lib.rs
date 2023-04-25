@@ -29,6 +29,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
 
     let mut st = FrontendState {
         segments: &mut segments,
+        comments: &comments,
         name_types: Default::default(),
     };
 
@@ -39,9 +40,7 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
     for b in &module.body {
         let b = b.as_module_decl().unwrap();
         let b = b.as_export_decl().expect("module have only exports");
-        let comment = comments.with_leading(b.span.lo, |cs| {
-            cs.last().map(|c| frontend::strip_docs(&c.text))
-        });
+        let comment = st.get_comment(b.span.lo);
         let decl = &b.decl;
 
         //dbg!(&decl);
