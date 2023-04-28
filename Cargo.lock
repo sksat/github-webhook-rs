@@ -289,10 +289,18 @@ name = "github-webhook"
 version = "0.1.0+v6.8.0"
 dependencies = [
  "anyhow",
- "github-webhook-type-generator",
- "reqwest",
+ "github-webhook-dts-downloader",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "github-webhook-dts-downloader"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "github-webhook-type-generator",
+ "reqwest",
 ]
 
 [[package]]

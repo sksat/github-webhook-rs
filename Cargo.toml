@@ -1,9 +1,11 @@
 [workspace]
 
 members = [
+    "dts-downloader",
     "type-generator",
     "github-webhook"
 ]
 
 [workspace.dependencies]
+github-webhook-dts-downloader.path = "./dts-downloader"
 github-webhook-type-generator.path = "./type-generator"
