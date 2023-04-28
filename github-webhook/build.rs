@@ -70,11 +70,12 @@ pub fn run_transform(
 
     let mut writer = BufWriter::new(File::create(&rs_file)?);
     write!(writer, "{rs}")?;
+    writer.into_inner()?;
 
     let output = Command::new("rustfmt").arg(rs_file).output()?;
-    io::stderr().write_all(&output.stderr).unwrap();
     let status = output.status;
     if !status.success() {
+        io::stderr().write_all(&output.stderr).unwrap();
         panic!("failed to execute rustfmt: {status}")
     }
 
