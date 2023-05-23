@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 description = "GitHub webhook payload type generator for Rust"
-repository = "https://github.com/sksat/github-webhook-rs"
-authors = ["sksat <sksat@sksat.net>"]
+repository.workspace = true
+authors.workspace = true
 license = "MIT"
 
 [features]
