@@ -16,5 +16,5 @@ github-webhook-dts-downloader.workspace = true
 anyhow = "1.0.70"
 
 [dependencies]
-serde = "1.0.160"
+serde = "1.0.163"
 serde_json = "1.0.96"
