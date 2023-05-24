@@ -3,20 +3,28 @@
     "config:base"
   ],
   "configMigration": true,
-  "additionalReviewers": ["sksat"],
-  "lockFileMaintenance": { "enabled": true },
+  "additionalReviewers": [
+    "sksat"
+  ],
+  "lockFileMaintenance": {
+    "enabled": true
+  },
   "regexManagers": [
     {
-      "fileMatch": ["^rust-toolchain(\\.toml)?$"],
+      "fileMatch": [
+        "^rust-toolchain(\\.toml)?$"
+      ],
       "matchStrings": [
         "channel\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
       ],
       "depNameTemplate": "rust",
-      "lookupNameTemplate": "rust-lang/rust",
+      "packageNameTemplate": "rust-lang/rust",
       "datasourceTemplate": "github-releases"
     },
     {
-      "fileMatch": ["^github-webhook/Cargo.toml$"],
+      "fileMatch": [
+        "^github-webhook/Cargo.toml$"
+      ],
       "matchStrings": [
         "name = \"github-webhook\"\\nversion = \".*\\+v(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
       ],
@@ -24,7 +32,9 @@
       "datasourceTemplate": "github-releases"
     },
     {
-      "fileMatch": ["^Dockerfile$"],
+      "fileMatch": [
+        "^Dockerfile$"
+      ],
       "matchStrings": [
         "# depName=(?<depName>.*?) datasource=(?<datasource>.*)\nARG .*_VERSION=\"(?<currentValue>.*)\""
       ],
