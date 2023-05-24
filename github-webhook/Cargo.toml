@@ -13,7 +13,7 @@ license = "MIT"
 
 [build-dependencies]
 github-webhook-dts-downloader.workspace = true
-anyhow = "1.0.70"
+anyhow = "1.0.71"
 
 [dependencies]
 serde = "1.0.160"
