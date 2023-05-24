@@ -2,6 +2,7 @@
   "extends": [
     "config:base"
   ],
+  "configMigration": true,
   "additionalReviewers": ["sksat"],
   "lockFileMaintenance": { "enabled": true },
   "regexManagers": [
