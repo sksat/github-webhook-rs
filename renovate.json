@@ -15,6 +15,14 @@
       "datasourceTemplate": "github-releases"
     },
     {
+      "fileMatch": ["^github-webhook/Cargo.toml$"],
+      "matchStrings": [
+        "name = \"github-webhook\"\\nversion = \".*\\+v(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ],
+      "depNameTemplate": "octokit/webhooks",
+      "datasourceTemplate": "github-releases"
+    },
+    {
       "fileMatch": ["^Dockerfile$"],
       "matchStrings": [
         "# depName=(?<depName>.*?) datasource=(?<datasource>.*)\nARG .*_VERSION=\"(?<currentValue>.*)\""
