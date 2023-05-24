@@ -1,6 +1,14 @@
 [workspace]
-
 members = [
+    "dts-downloader",
     "type-generator",
     "github-webhook"
 ]
+
+[workspace.package]
+repository = "https://github.com/sksat/github-webhook-rs"
+authors = ["sksat <sksat@sksat.net>", "s-ylide"]
+
+[workspace.dependencies]
+github-webhook-dts-downloader.path = "./dts-downloader"
+github-webhook-type-generator.path = "./type-generator"

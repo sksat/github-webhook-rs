@@ -6,15 +6,15 @@ edition = "2021"
 build = "build.rs"
 
 description = "GitHub Webhooks for Rust"
-repository = "https://github.com/sksat/github-webhook-rs"
-authors = ["sksat <sksat@sksat.net>"]
+repository.workspace = true
+authors.workspace = true
 license = "MIT"
 # TODO: how to notice https://github.com/octokit/webhooks/blob/v6.8.0/LICENSE (MIT)
 
 [build-dependencies]
-github-webhook-type-generator = "0.1.0"
+github-webhook-dts-downloader.workspace = true
 anyhow = "1.0.70"
-reqwest = { version = "0.11.16", features = ["blocking"] }
 
 [dependencies]
 serde = "1.0.160"
+serde_json = "1.0.96"

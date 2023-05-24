@@ -4,13 +4,20 @@ version = "0.1.0"
 edition = "2021"
 
 description = "GitHub webhook payload type generator for Rust"
-repository = "https://github.com/sksat/github-webhook-rs"
-authors = ["sksat <sksat@sksat.net>"]
+repository.workspace = true
+authors.workspace = true
 license = "MIT"
 
+[features]
+default = ["serde"]
+serde = []
+
 [dependencies]
+proc-macro2 = "1.0.54"
+quote = "1.0.26"
 anyhow = "1.0.70"
 structopt = "0.3.26"
 swc_common = { version = "0.31.4", features = ["tty-emitter"]}
 swc_ecma_ast = "0.103.4"
 swc_ecma_parser = "0.133.9"
+once_cell = "1.17.1"

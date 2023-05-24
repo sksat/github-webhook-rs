@@ -27,7 +27,7 @@ jobs:
       - uses: actions-rs/toolchain@v1.0.7
         with:
           toolchain: ${{ steps.toolchain.outputs.toolchain }}
-          components: clippy
+          components: rustfmt, clippy
           override: true
 
       - name: cache dependencies
