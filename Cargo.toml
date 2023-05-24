@@ -10,5 +10,5 @@ repository = "https://github.com/sksat/github-webhook-rs"
 authors = ["sksat <sksat@sksat.net>", "s-ylide"]
 
 [workspace.dependencies]
-github-webhook-dts-downloader = { path = "./dts-downloader", version = "0.1" }
-github-webhook-type-generator = { path = "./type-generator", version = "0.1" }
+github-webhook-dts-downloader = { path = "./dts-downloader", version = "0.2" }
+github-webhook-type-generator = { path = "./type-generator", version = "0.2" }
