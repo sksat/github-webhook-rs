@@ -13,7 +13,7 @@ default = ["serde"]
 serde = []
 
 [dependencies]
-proc-macro2 = "1.0.54"
+proc-macro2 = "1.0.58"
 quote = "1.0.27"
 anyhow = "1.0.71"
 structopt = "0.3.26"
