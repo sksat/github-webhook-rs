@@ -4,3 +4,5 @@
 [![Rust](https://github.com/sksat/github-webhook-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/sksat/github-webhook-rs/actions/workflows/rust.yml)
 
 `github-webhook-rs` is GitHub webhook library for Rust.
+
+- [API documentation](https://sksat.github.io/github-webhook-rs/github_webhook)
