@@ -26,7 +26,8 @@
         "^github-webhook/Cargo.toml$"
       ],
       "matchStrings": [
-        "name = \"github-webhook\"\\nversion = \".*\\+(?<currentValue>v\\d+\\.\\d+\\.\\d+)\""
+        "name = \"github-webhook\"\\nversion = \".*\\+(?<currentValue>v\\d+\\.\\d+\\.\\d+)\"",
+        "\\[package.metadata.octokit-webhooks\\]\nrepository\\s=\\s\"(?<depName>.*?)\"\nversion\\s=\\s\"(?<currentValue>v\\d+\\.\\d+\\.\\d+)\""
       ],
       "depNameTemplate": "octokit/webhooks",
       "datasourceTemplate": "github-releases"

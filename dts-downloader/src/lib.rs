@@ -19,15 +19,7 @@ pub struct Version(pub String);
 
 impl Default for Version {
     fn default() -> Self {
-        let pkg_version = env::var("CARGO_PKG_VERSION").unwrap();
-        let pkg_version = semver::Version::parse(&pkg_version).unwrap();
-        let branch_name = if !pkg_version.build.is_empty() {
-            pkg_version.build.as_str()
-        } else {
-            "master"
-        }
-        .to_string();
-        Self(branch_name)
+        Self("master".to_string())
     }
 }
 
