@@ -9,6 +9,7 @@ fn main() -> Result<()> {
     let metadata = MetadataCommand::new()
         .manifest_path(manifest_dir + "/Cargo.toml")
         .features(CargoOpt::AllFeatures)
+        .no_deps() // prevent generate lockfile
         .exec()
         .unwrap();
 
