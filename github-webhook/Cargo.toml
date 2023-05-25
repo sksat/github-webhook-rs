@@ -8,6 +8,7 @@ build = "build.rs"
 description = "GitHub Webhooks for Rust"
 repository.workspace = true
 authors.workspace = true
+readme = "../README.md"
 license = "MIT"
 # TODO: how to notice https://github.com/octokit/webhooks/blob/v6.8.0/LICENSE (MIT)
 
