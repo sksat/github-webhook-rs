@@ -1,6 +1,6 @@
 [package]
 name = "github-webhook"
-version = "0.2.0+v6.11.0"
+version = "0.2.1+v6.11.0"
 edition = "2021"
 
 build = "build.rs"
