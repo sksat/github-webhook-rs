@@ -6,3 +6,4 @@
 `github-webhook-rs` is GitHub webhook library for Rust.
 
 - [API documentation](https://sksat.github.io/github-webhook-rs/github_webhook)
+- [Release notes](https://github.com/sksat/github-webhook-rs/releases)
