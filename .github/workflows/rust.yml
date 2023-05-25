@@ -39,3 +39,54 @@ jobs:
 
       - name: unit test
         run: cargo test
+
+  rustdoc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Get Rust toolchain
+        id: toolchain
+        run: |
+          awk -F'[ ="]+' '$1 == "channel" { print "toolchain=" $2 }' rust-toolchain >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.toolchain.outputs.toolchain }}
+          components: rustfmt
+
+      - name: cache dependencies
+        uses: Swatinem/rust-cache@v2.4.0
+
+      - name: build rustdoc
+        run: |
+          cargo doc --no-deps
+
+      - name: add index.html
+        run: |
+          cat > ./target/doc/index.html << EOS
+          <meta http-equiv="refresh" content="1;URL=github_webhook">
+          EOS
+
+      - name: arcive rustdoc
+        uses: actions/upload-pages-artifact@v1.0.8
+        with:
+          path: ./target/doc
+
+  deploy-rustdoc-pages:
+    if: github.ref == 'refs/heads/main'
+    needs: rustdoc
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to GitHub pages
+        id: deployment
+        uses: actions/deploy-pages@v2.0.1
