@@ -75,6 +75,7 @@ jobs:
           path: ./target/doc
 
   deploy-rustdoc-pages:
+    if: github.ref == 'refs/heads/main'
     needs: rustdoc
     permissions:
       pages: write
