@@ -24,7 +24,22 @@ fn main() -> Result<()> {
 
     assert_eq!(pkg_name, pkg.name);
 
-    run_transform(Default::default())?;
+    let octokit_webhooks = pkg
+        .metadata
+        .get("octokit-webhooks")
+        .expect("Could not get octokit-webhooks metadata");
+
+    let octokit_ver = octokit_webhooks
+        .get("version")
+        .expect("Could not get octokit/webhooks version")
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    run_transform(github_webhook_dts_downloader::Opt {
+        version: github_webhook_dts_downloader::Version(octokit_ver),
+        ..Default::default()
+    })?;
 
     Ok(())
 }
