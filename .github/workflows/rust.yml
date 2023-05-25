@@ -39,3 +39,25 @@ jobs:
 
       - name: unit test
         run: cargo test
+
+  rustdoc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Get Rust toolchain
+        id: toolchain
+        run: |
+          awk -F'[ ="]+' '$1 == "channel" { print "toolchain=" $2 }' rust-toolchain >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.toolchain.outputs.toolchain }}
+
+      - name: cache dependencies
+        uses: Swatinem/rust-cache@v2.4.0
+
+      - name: build rustdoc
+        run: |
+          cargo doc --no-deps
