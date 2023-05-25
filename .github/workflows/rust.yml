@@ -65,11 +65,8 @@ jobs:
 
       - name: add index.html
         run: |
-          repo_name="${{ github.repository }}"
-          # shellcheck disable=SC2206
-          repo_name=(${repo_name/\// })
           cat > ./target/doc/index.html << EOS
-          <meta http-equiv="refresh" content="1;URL=${repo_name[1]}/github_webhook">
+          <meta http-equiv="refresh" content="1;URL=github_webhook">
           EOS
 
       - name: arcive rustdoc
