@@ -6,6 +6,7 @@ members = [
 ]
 
 [workspace.package]
+version = "0.2.0"
 repository = "https://github.com/sksat/github-webhook-rs"
 authors = ["sksat <sksat@sksat.net>", "s-ylide"]
 
