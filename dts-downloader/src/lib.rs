@@ -8,18 +8,18 @@ use anyhow::Result;
 
 use github_webhook_type_generator::dts2rs;
 
-#[derive(Default)]
 pub struct Opt {
-    pub version: Version,
+    pub version: String,
     pub out_path_ts: OutPathTs,
     pub out_path_rs: OutPathRs,
 }
 
-pub struct Version(pub String);
-
-impl Default for Version {
+impl Default for Opt {
     fn default() -> Self {
-        Self("master".to_string())
+        Self {
+            version: "master".to_string(),
+            ..Default::default()
+        }
     }
 }
 
@@ -45,7 +45,7 @@ impl Default for OutPathRs {
 
 pub fn run_transform(
     Opt {
-        version: Version(branch),
+        version: branch,
         out_path_ts: OutPathTs(dts_file),
         out_path_rs: OutPathRs(rs_file),
     }: Opt,
