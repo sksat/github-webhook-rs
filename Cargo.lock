@@ -339,7 +339,7 @@ dependencies = [
 
 [[package]]
 name = "github-webhook"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -350,7 +350,7 @@ dependencies = [
 
 [[package]]
 name = "github-webhook-dts-downloader"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "github-webhook-type-generator",
@@ -360,7 +360,7 @@ dependencies = [
 
 [[package]]
 name = "github-webhook-type-generator"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "once_cell",
