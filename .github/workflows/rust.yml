@@ -63,6 +63,12 @@ jobs:
         run: |
           cargo doc --no-deps
 
+      - name: add index.html
+        run: |
+          cat > ./target/doc/index.html << EOS
+          <meta http-equiv="refresh" content="1;URL=/github_webhook">
+          EOS
+
       - name: arcive rustdoc
         uses: actions/upload-pages-artifact@v1.0.8
         with:
