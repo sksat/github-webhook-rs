@@ -344,6 +344,7 @@ dependencies = [
  "anyhow",
  "cargo_metadata",
  "github-webhook-dts-downloader",
+ "reqwest",
  "serde",
  "serde_json",
 ]
