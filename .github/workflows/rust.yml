@@ -90,3 +90,11 @@ jobs:
       - name: Deploy to GitHub pages
         id: deployment
         uses: actions/deploy-pages@v2.0.1
+
+  semver:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: obi1kenobi/cargo-semver-checks-action@v2.1
