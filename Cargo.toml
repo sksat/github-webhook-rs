@@ -6,10 +6,10 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.4"
+version = "0.3.0"
 repository = "https://github.com/sksat/github-webhook-rs"
 authors = ["sksat <sksat@sksat.net>", "s-ylide"]
 
 [workspace.dependencies]
-github-webhook-dts-downloader = { path = "./dts-downloader", version = "0.2" }
-github-webhook-type-generator = { path = "./type-generator", version = "0.2" }
+github-webhook-dts-downloader = { path = "./dts-downloader", version = "0.3" }
+github-webhook-type-generator = { path = "./type-generator", version = "0.3" }
