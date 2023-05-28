@@ -12,4 +12,3 @@ license = "MIT"
 github-webhook-type-generator.workspace = true
 anyhow = "1.0.71"
 reqwest = { version = "0.11.18", features = ["blocking"] }
-semver = "1.0.17"

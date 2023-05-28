@@ -356,14 +356,12 @@ dependencies = [
  "anyhow",
  "github-webhook-type-generator",
  "reqwest",
- "semver",
 ]
 
 [[package]]
 name = "github-webhook-type-generator"
 version = "0.3.0"
 dependencies = [
- "anyhow",
  "once_cell",
  "proc-macro2",
  "quote",
