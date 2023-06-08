@@ -15,7 +15,7 @@ license = "MIT"
 
 [package.metadata.octokit-webhooks]
 repository = "octokit/webhooks"
-version = "v7.0.2"
+version = "v7.0.3"
 
 [build-dependencies]
 github-webhook-dts-downloader.workspace = true
