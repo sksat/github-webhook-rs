@@ -1,6 +1,7 @@
 [package]
 name = "github-webhook-type-generator"
 version.workspace = true
+rust-version.workspace = true
 edition = "2021"
 
 description = "GitHub webhook payload type generator for Rust"
