@@ -1,6 +1,7 @@
 [package]
 name = "github-webhook-dts-downloader"
 version.workspace = true
+rust-version.workspace = true
 edition = "2021"
 
 description = "GitHub webhook payload type def downloader for Rust"
