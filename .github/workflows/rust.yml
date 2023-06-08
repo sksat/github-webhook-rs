@@ -26,7 +26,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.toolchain.outputs.toolchain }}
-          components: rustfmt, clippy
 
       - name: cache dependencies
         uses: Swatinem/rust-cache@v2.4.0
@@ -54,7 +53,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.toolchain.outputs.toolchain }}
-          components: rustfmt
 
       - name: cache dependencies
         uses: Swatinem/rust-cache@v2.4.0
