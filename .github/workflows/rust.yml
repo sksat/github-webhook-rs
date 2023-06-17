@@ -68,7 +68,7 @@ jobs:
           EOS
 
       - name: arcive rustdoc
-        uses: actions/upload-pages-artifact@v1.0.8
+        uses: actions/upload-pages-artifact@v1.0.9
         with:
           path: ./target/doc
 
