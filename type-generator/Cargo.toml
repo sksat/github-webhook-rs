@@ -18,6 +18,6 @@ proc-macro2 = "1.0.60"
 quote = "1.0.28"
 structopt = "0.3.26"
 swc_common = { version = "0.31.12", features = ["tty-emitter"]}
-swc_ecma_ast = "0.104.5"
-swc_ecma_parser = "0.134.12"
+swc_ecma_ast = "0.106.0"
+swc_ecma_parser = "0.136.0"
 once_cell = "1.18.0"
