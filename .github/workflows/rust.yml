@@ -87,7 +87,7 @@ jobs:
     steps:
       - name: Deploy to GitHub pages
         id: deployment
-        uses: actions/deploy-pages@v2.0.1
+        uses: actions/deploy-pages@v2.0.2
 
   semver:
     runs-on: ubuntu-latest
