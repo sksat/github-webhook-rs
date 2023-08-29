@@ -1,5 +1,6 @@
 pub mod merge_union_type_lits;
 pub mod name_types;
+pub mod syntax;
 
 use once_cell::sync::Lazy;
 use std::{borrow::Cow, collections::HashMap};
