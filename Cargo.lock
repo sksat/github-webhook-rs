@@ -390,6 +390,8 @@ dependencies = [
  "once_cell",
  "proc-macro2",
  "quote",
+ "serde",
+ "serde_json",
  "structopt",
  "swc_common",
  "swc_ecma_ast",
