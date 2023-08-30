@@ -44,8 +44,17 @@ mod schema_version {
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct Property<'a> {
+    #[serde(default)]
+    /// `Option<&'a str>` doesn't work (?)
+    pub description: Option<String>,
+    #[serde(flatten, borrow)]
+    pub kind: PropertyKind<'a>,
+}
+
 #[derive(Debug)]
-pub enum Property<'a> {
+pub enum PropertyKind<'a> {
     Ref(RefProperty<'a>),
     Value(TypedValue<'a>),
     Enum(EnumProperty<'a>),
@@ -124,7 +133,7 @@ impl<'de: 'a, 'a> Deserialize<'de> for ObjectProperties<'a> {
 #[derive(Debug, Deserialize)]
 pub struct ArrayProperty<'a> {
     #[serde(borrow = "'a")]
-    pub items: Box<Property<'a>>,
+    pub items: Box<PropertyKind<'a>>,
 }
 
 #[derive(Debug)]
@@ -160,7 +169,7 @@ pub enum EnumMembers<'a> {
     Boolean(Vec<bool>),
 }
 
-impl<'de: 'a, 'a> Deserialize<'de> for Property<'a> {
+impl<'de: 'a, 'a> Deserialize<'de> for PropertyKind<'a> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -168,7 +177,7 @@ impl<'de: 'a, 'a> Deserialize<'de> for Property<'a> {
         use tagged_enum::*;
 
         struct PropertyVisitor<'a> {
-            value: PhantomData<Property<'a>>,
+            value: PhantomData<PropertyKind<'a>>,
         }
 
         impl<'a> PropertyVisitor<'a> {
@@ -334,29 +343,29 @@ impl<'de: 'a, 'a> Deserialize<'de> for Property<'a> {
         let (tag, content) = deserializer.deserialize_any(PropertyVisitor::new())?;
         let deserializer = ContentDeserializer::<D::Error>::new(content);
         match tag {
-            Tag::Ref => RefProperty::deserialize(deserializer).map(Property::Ref),
+            Tag::Ref => RefProperty::deserialize(deserializer).map(PropertyKind::Ref),
             Tag::Type(ty) => {
                 let (ty, is_nullable) = match ty {
-                    PropertyType::Null => return Ok(Property::Value(TypedValue::Null)),
+                    PropertyType::Null => return Ok(PropertyKind::Value(TypedValue::Null)),
                     PropertyType::NonNull(ty) => (ty, false),
                     PropertyType::Nullable(ty) => (ty, true),
                 };
                 match ty {
-                    NonNullPropertyType::Boolean => Ok(Property::Value(TypedValue::Other {
+                    NonNullPropertyType::Boolean => Ok(PropertyKind::Value(TypedValue::Other {
                         is_nullable,
                         value: NonNullValue::Boolean,
                     })),
-                    NonNullPropertyType::Integer => Ok(Property::Value(TypedValue::Other {
+                    NonNullPropertyType::Integer => Ok(PropertyKind::Value(TypedValue::Other {
                         is_nullable,
                         value: NonNullValue::Integer,
                     })),
-                    NonNullPropertyType::Number => Ok(Property::Value(TypedValue::Other {
+                    NonNullPropertyType::Number => Ok(PropertyKind::Value(TypedValue::Other {
                         is_nullable,
                         value: NonNullValue::Number,
                     })),
                     NonNullPropertyType::String => {
                         StringProperty::deserialize(deserializer).map(|c| {
-                            Property::Value(TypedValue::Other {
+                            PropertyKind::Value(TypedValue::Other {
                                 is_nullable,
                                 value: NonNullValue::String(c),
                             })
@@ -364,7 +373,7 @@ impl<'de: 'a, 'a> Deserialize<'de> for Property<'a> {
                     }
                     NonNullPropertyType::Object => {
                         ObjectProperty::deserialize(deserializer).map(|c| {
-                            Property::Value(TypedValue::Other {
+                            PropertyKind::Value(TypedValue::Other {
                                 is_nullable,
                                 value: NonNullValue::Object(c),
                             })
@@ -372,7 +381,7 @@ impl<'de: 'a, 'a> Deserialize<'de> for Property<'a> {
                     }
                     NonNullPropertyType::Array => {
                         ArrayProperty::deserialize(deserializer).map(|c| {
-                            Property::Value(TypedValue::Other {
+                            PropertyKind::Value(TypedValue::Other {
                                 is_nullable,
                                 value: NonNullValue::Array(c),
                             })
@@ -444,7 +453,7 @@ impl<'de: 'a, 'a> Deserialize<'de> for Property<'a> {
                             _enum: Vec<bool>,
                         }
                         BooleanEnum::deserialize(deserializer).map(|c| {
-                            Property::Enum(EnumProperty {
+                            PropertyKind::Enum(EnumProperty {
                                 members: EnumMembers::Boolean(c._enum),
                             })
                         })
@@ -456,7 +465,7 @@ impl<'de: 'a, 'a> Deserialize<'de> for Property<'a> {
                             _enum: StringEnum<'a, false>,
                         }
                         NonNullStringEnum::deserialize(deserializer).map(|c| {
-                            Property::Enum(EnumProperty {
+                            PropertyKind::Enum(EnumProperty {
                                 members: EnumMembers::Str {
                                     contains_null: false,
                                     members: c._enum.value,
@@ -471,7 +480,7 @@ impl<'de: 'a, 'a> Deserialize<'de> for Property<'a> {
                             _enum: StringEnum<'a, true>,
                         }
                         NullableStringEnum::deserialize(deserializer).map(|c| {
-                            Property::Enum(EnumProperty {
+                            PropertyKind::Enum(EnumProperty {
                                 members: EnumMembers::Str {
                                     contains_null: true,
                                     members: c._enum.value,
@@ -484,7 +493,7 @@ impl<'de: 'a, 'a> Deserialize<'de> for Property<'a> {
                     )))?,
                 }
             }
-            Tag::None => Ok(Property::Any),
+            Tag::None => Ok(PropertyKind::Any),
         }
     }
 }
@@ -927,6 +936,25 @@ mod tests {
                     },
                     "title": "branch protection rule created event",
                     "additionalProperties": false
+                },
+                "issues$labeled": {
+                    "$schema": "http://json-schema.org/draft-07/schema",
+                    "type": "object",
+                    "required": ["action", "issue", "repository", "sender"],
+                    "properties": {
+                        "action": { "type": "string", "enum": ["labeled"] },
+                        "issue": { "$ref": "#/definitions/issue" },
+                        "label": {
+                            "$ref": "#/definitions/label",
+                            "description": "The label that was added to the issue."
+                        },
+                        "repository": { "$ref": "#/definitions/repository" },
+                        "sender": { "$ref": "#/definitions/user" },
+                        "installation": { "$ref": "#/definitions/installation-lite" },
+                        "organization": { "$ref": "#/definitions/organization" }
+                    },
+                    "additionalProperties": false,
+                    "title": "issues labeled event"
                 }
             },
             "oneOf": [
