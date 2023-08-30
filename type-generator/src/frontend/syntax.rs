@@ -49,6 +49,7 @@ pub enum Property<'a> {
     Ref(RefProperty<'a>),
     Value(TypedValue<'a>),
     Enum(EnumProperty<'a>),
+    Any,
 }
 
 #[derive(Debug, Deserialize)]
@@ -281,7 +282,10 @@ impl<'de: 'a, 'a> Deserialize<'de> for Property<'a> {
                 if let Some(type_value) = tag_type {
                     return Ok((Tag::Type(type_value), Content::Map(vec)));
                 }
-                Err(de::Error::custom("missing field `type`, `enum`, or `$ref`"))
+                if vec.is_empty() {
+                    return Ok((Tag::None, Content::None));
+                }
+                Err(de::Error::custom("unsupported property type"))
             }
         }
 
@@ -439,6 +443,7 @@ impl<'de: 'a, 'a> Deserialize<'de> for Property<'a> {
                     )))?,
                 }
             }
+            Tag::None => Ok(Property::Any),
         }
     }
 }
@@ -579,6 +584,7 @@ mod tagged_enum {
         Ref,
         Type(PropertyType),
         Enum(PropertyType),
+        None,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
