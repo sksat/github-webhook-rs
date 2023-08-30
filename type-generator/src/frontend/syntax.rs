@@ -46,8 +46,6 @@ mod schema_version {
 
 #[derive(Debug, Deserialize)]
 pub struct Property<'a> {
-    #[serde(default)]
-    /// `Option<&'a str>` doesn't work (?)
     pub description: Option<String>,
     #[serde(flatten, borrow)]
     pub kind: PropertyKind<'a>,
@@ -56,6 +54,8 @@ pub struct Property<'a> {
 #[derive(Debug)]
 pub enum PropertyKind<'a> {
     Ref(RefProperty<'a>),
+    OneOf(Vec<Self>),
+    AllOf(Vec<Self>),
     Value(TypedValue<'a>),
     Enum(EnumProperty<'a>),
     Any,
@@ -86,7 +86,7 @@ pub struct ObjectProperty<'a> {
     pub properties: ObjectProperties<'a>,
     pub required: Option<Vec<&'a str>>,
     pub title: Option<&'a str>,
-    pub additional_properties: bool,
+    pub additional_properties: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -281,6 +281,8 @@ impl<'de: 'a, 'a> Deserialize<'de> for PropertyKind<'a> {
                 }
 
                 let mut tag_ref: Option<Content> = None;
+                let mut tag_oneof: Option<Content> = None;
+                let mut tag_allof: Option<Content> = None;
                 let mut tag_type: Option<PropertyType> = None;
                 let mut tag_enum: Option<Content> = None;
                 let mut vec =
@@ -290,23 +292,35 @@ impl<'de: 'a, 'a> Deserialize<'de> for PropertyKind<'a> {
                     TagKind::ALL.iter().map(|t| (t.as_str(), *t)).collect(),
                 )))? {
                     match k {
-                        TagOrContent::Tag(new_tag) => match new_tag {
+                        TagOrContent::Tag(new_tag) => match &new_tag {
                             TagKind::Ref => {
                                 if tag_ref.is_some() {
-                                    return Err(de::Error::duplicate_field("$ref"));
+                                    return Err(de::Error::duplicate_field(new_tag.as_str()));
                                 }
                                 tag_ref = Some(map.next_value::<Content>()?);
                             }
+                            TagKind::OneOf => {
+                                if tag_oneof.is_some() {
+                                    return Err(de::Error::duplicate_field(new_tag.as_str()));
+                                }
+                                tag_oneof = Some(map.next_value::<Content>()?);
+                            }
+                            TagKind::AllOf => {
+                                if tag_allof.is_some() {
+                                    return Err(de::Error::duplicate_field(new_tag.as_str()));
+                                }
+                                tag_allof = Some(map.next_value::<Content>()?);
+                            }
                             TagKind::Type => {
                                 if tag_type.is_some() {
-                                    return Err(de::Error::duplicate_field("type"));
+                                    return Err(de::Error::duplicate_field(new_tag.as_str()));
                                 }
                                 // use of `<'de: 'a, 'a> PropertyType<'a>: Deserialize<'de>`
                                 tag_type = Some(map.next_value::<PropertyType>()?);
                             }
                             TagKind::Enum => {
                                 if tag_enum.is_some() {
-                                    return Err(de::Error::duplicate_field("enum"));
+                                    return Err(de::Error::duplicate_field(new_tag.as_str()));
                                 }
                                 tag_enum = Some(map.next_value::<Content>()?);
                             }
@@ -318,12 +332,20 @@ impl<'de: 'a, 'a> Deserialize<'de> for PropertyKind<'a> {
                     }
                 }
                 if let Some(ref_value) = tag_ref {
-                    vec.push((Content::String(TagKind::Ref.as_str().into()), ref_value));
+                    vec.push((Content::Str(TagKind::Ref.as_str()), ref_value));
                     return Ok((Tag::Ref, Content::Map(vec)));
+                }
+                if let Some(oneof_value) = tag_oneof {
+                    vec.push((Content::Str(TagKind::OneOf.as_str()), oneof_value));
+                    return Ok((Tag::OneOf, Content::Map(vec)));
+                }
+                if let Some(allof_value) = tag_allof {
+                    vec.push((Content::Str(TagKind::AllOf.as_str()), allof_value));
+                    return Ok((Tag::AllOf, Content::Map(vec)));
                 }
                 if let Some(enum_value) = tag_enum {
                     if let Some(type_value) = tag_type {
-                        vec.push((Content::String(TagKind::Enum.as_str().into()), enum_value));
+                        vec.push((Content::Str(TagKind::Enum.as_str()), enum_value));
                         return Ok((Tag::Enum(type_value), Content::Map(vec)));
                     } else {
                         return Err(de::Error::missing_field("type"));
@@ -344,6 +366,22 @@ impl<'de: 'a, 'a> Deserialize<'de> for PropertyKind<'a> {
         let deserializer = ContentDeserializer::<D::Error>::new(content);
         match tag {
             Tag::Ref => RefProperty::deserialize(deserializer).map(PropertyKind::Ref),
+            Tag::OneOf => {
+                #[derive(Debug, Deserialize)]
+                struct OneOfProperty<'a> {
+                    #[serde(rename = "oneOf", borrow = "'a")]
+                    pub one_of: Vec<PropertyKind<'a>>,
+                }
+                OneOfProperty::deserialize(deserializer).map(|c| PropertyKind::OneOf(c.one_of))
+            }
+            Tag::AllOf => {
+                #[derive(Debug, Deserialize)]
+                struct AllOfProperty<'a> {
+                    #[serde(rename = "allOf", borrow = "'a")]
+                    pub all_of: Vec<PropertyKind<'a>>,
+                }
+                AllOfProperty::deserialize(deserializer).map(|c| PropertyKind::AllOf(c.all_of))
+            }
             Tag::Type(ty) => {
                 let (ty, is_nullable) = match ty {
                     PropertyType::Null => return Ok(PropertyKind::Value(TypedValue::Null)),
@@ -533,11 +571,53 @@ mod tagged_enum {
             Ok(Content::Bool(value))
         }
 
+        fn visit_i8<F>(self, value: i8) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            Ok(Content::I8(value))
+        }
+
+        fn visit_i16<F>(self, value: i16) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            Ok(Content::I16(value))
+        }
+
+        fn visit_i32<F>(self, value: i32) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            Ok(Content::I32(value))
+        }
+
         fn visit_i64<F>(self, value: i64) -> Result<Self::Value, F>
         where
             F: de::Error,
         {
             Ok(Content::I64(value))
+        }
+
+        fn visit_u8<F>(self, value: u8) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            Ok(Content::U8(value))
+        }
+
+        fn visit_u16<F>(self, value: u16) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            Ok(Content::U16(value))
+        }
+
+        fn visit_u32<F>(self, value: u32) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            Ok(Content::U32(value))
         }
 
         fn visit_u64<F>(self, value: u64) -> Result<Self::Value, F>
@@ -547,11 +627,25 @@ mod tagged_enum {
             Ok(Content::U64(value))
         }
 
+        fn visit_f32<F>(self, value: f32) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            Ok(Content::F32(value))
+        }
+
         fn visit_f64<F>(self, value: f64) -> Result<Self::Value, F>
         where
             F: de::Error,
         {
             Ok(Content::F64(value))
+        }
+
+        fn visit_char<F>(self, value: char) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            Ok(Content::Char(value))
         }
 
         fn visit_str<F>(self, value: &str) -> Result<Self::Value, F>
@@ -561,11 +655,39 @@ mod tagged_enum {
             Ok(Content::String(value.into()))
         }
 
+        fn visit_borrowed_str<F>(self, value: &'de str) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            Ok(Content::Str(value))
+        }
+
+        fn visit_string<F>(self, value: String) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            Ok(Content::String(value))
+        }
+
         fn visit_bytes<F>(self, value: &[u8]) -> Result<Self::Value, F>
         where
             F: de::Error,
         {
             Ok(Content::ByteBuf(value.into()))
+        }
+
+        fn visit_borrowed_bytes<F>(self, value: &'de [u8]) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            Ok(Content::Bytes(value))
+        }
+
+        fn visit_byte_buf<F>(self, value: Vec<u8>) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            Ok(Content::ByteBuf(value))
         }
 
         fn visit_unit<F>(self) -> Result<Self::Value, F>
@@ -632,6 +754,8 @@ mod tagged_enum {
     #[derive(Debug)]
     pub enum Tag {
         Ref,
+        OneOf,
+        AllOf,
         Type(PropertyType),
         Enum(PropertyType),
         None,
@@ -640,18 +764,24 @@ mod tagged_enum {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum TagKind {
         Ref,
+        OneOf,
+        AllOf,
         Type,
         Enum,
     }
 
     impl TagKind {
         pub const REF: &'static str = "$ref";
+        pub const ONE_OF: &'static str = "oneOf";
+        pub const ALL_OF: &'static str = "allOf";
         pub const TYPE: &'static str = "type";
         pub const ENUM: &'static str = "enum";
-        pub const ALL: [Self; 3] = [Self::Ref, Self::Type, Self::Enum];
+        pub const ALL: [Self; 5] = [Self::Ref, Self::OneOf, Self::AllOf, Self::Type, Self::Enum];
         pub fn as_str(&self) -> &'static str {
             match self {
                 TagKind::Ref => Self::REF,
+                TagKind::OneOf => Self::ONE_OF,
+                TagKind::AllOf => Self::ALL_OF,
                 TagKind::Type => Self::TYPE,
                 TagKind::Enum => Self::ENUM,
             }
@@ -689,12 +819,66 @@ mod tagged_enum {
                 .map(TagOrContent::Content)
         }
 
+        fn visit_i8<F>(self, value: i8) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            ContentVisitor::new()
+                .visit_i8(value)
+                .map(TagOrContent::Content)
+        }
+
+        fn visit_i16<F>(self, value: i16) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            ContentVisitor::new()
+                .visit_i16(value)
+                .map(TagOrContent::Content)
+        }
+
+        fn visit_i32<F>(self, value: i32) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            ContentVisitor::new()
+                .visit_i32(value)
+                .map(TagOrContent::Content)
+        }
+
         fn visit_i64<F>(self, value: i64) -> Result<Self::Value, F>
         where
             F: de::Error,
         {
             ContentVisitor::new()
                 .visit_i64(value)
+                .map(TagOrContent::Content)
+        }
+
+        fn visit_u8<F>(self, value: u8) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            ContentVisitor::new()
+                .visit_u8(value)
+                .map(TagOrContent::Content)
+        }
+
+        fn visit_u16<F>(self, value: u16) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            ContentVisitor::new()
+                .visit_u16(value)
+                .map(TagOrContent::Content)
+        }
+
+        fn visit_u32<F>(self, value: u32) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            ContentVisitor::new()
+                .visit_u32(value)
                 .map(TagOrContent::Content)
         }
 
@@ -707,12 +891,30 @@ mod tagged_enum {
                 .map(TagOrContent::Content)
         }
 
+        fn visit_f32<F>(self, value: f32) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            ContentVisitor::new()
+                .visit_f32(value)
+                .map(TagOrContent::Content)
+        }
+
         fn visit_f64<F>(self, value: f64) -> Result<Self::Value, F>
         where
             F: de::Error,
         {
             ContentVisitor::new()
                 .visit_f64(value)
+                .map(TagOrContent::Content)
+        }
+
+        fn visit_char<F>(self, value: char) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            ContentVisitor::new()
+                .visit_char(value)
                 .map(TagOrContent::Content)
         }
 
@@ -729,6 +931,32 @@ mod tagged_enum {
             }
         }
 
+        fn visit_borrowed_str<F>(self, value: &'de str) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            if let Some(t) = self.names.get(value) {
+                Ok(TagOrContent::Tag(*t))
+            } else {
+                ContentVisitor::new()
+                    .visit_borrowed_str(value)
+                    .map(TagOrContent::Content)
+            }
+        }
+
+        fn visit_string<F>(self, value: String) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            if let Some(t) = self.names.get(value.as_str()) {
+                Ok(TagOrContent::Tag(*t))
+            } else {
+                ContentVisitor::new()
+                    .visit_string(value)
+                    .map(TagOrContent::Content)
+            }
+        }
+
         fn visit_bytes<F>(self, value: &[u8]) -> Result<Self::Value, F>
         where
             F: de::Error,
@@ -738,6 +966,32 @@ mod tagged_enum {
             } else {
                 ContentVisitor::new()
                     .visit_bytes(value)
+                    .map(TagOrContent::Content)
+            }
+        }
+
+        fn visit_borrowed_bytes<F>(self, value: &'de [u8]) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            if let Some((_, t)) = self.names.iter().find(|(k, _)| k.as_bytes() == value) {
+                Ok(TagOrContent::Tag(*t))
+            } else {
+                ContentVisitor::new()
+                    .visit_borrowed_bytes(value)
+                    .map(TagOrContent::Content)
+            }
+        }
+
+        fn visit_byte_buf<F>(self, value: Vec<u8>) -> Result<Self::Value, F>
+        where
+            F: de::Error,
+        {
+            if let Some((_, t)) = self.names.iter().find(|(k, _)| k.as_bytes() == value) {
+                Ok(TagOrContent::Tag(*t))
+            } else {
+                ContentVisitor::new()
+                    .visit_byte_buf(value)
                     .map(TagOrContent::Content)
             }
         }
@@ -955,6 +1209,19 @@ mod tests {
                     },
                     "additionalProperties": false,
                     "title": "issues labeled event"
+                },
+                "marketplace_purchase": {
+                    "allOf": [
+                        { "$ref": "#/definitions/marketplace-purchase" },
+                        {
+                            "type": "object",
+                            "required": ["next_billing_date"],
+                            "properties": {
+                                "next_billing_date": { "type": "string", "format": "date-time" }
+                            },
+                            "tsAdditionalProperties": false
+                        }
+                    ]
                 }
             },
             "oneOf": [
