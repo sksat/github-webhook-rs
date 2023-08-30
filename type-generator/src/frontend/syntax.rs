@@ -1,4 +1,4 @@
-use std::{collections::HashMap, marker::PhantomData};
+use std::marker::PhantomData;
 
 // use this module because deserializing `Property<'a>` resembles that of internally tagged enums, which "use"s it
 // we can't simply use internal tagged enums because the property "type" is not always a string
@@ -14,7 +14,7 @@ pub struct JsonSchemaRoot<'a> {
     #[serde(flatten)]
     _schema: SchemaVersion,
     #[serde(borrow)]
-    pub definitions: HashMap<&'a str, Property<'a>>,
+    pub definitions: ObjectProperties<'a>,
     pub one_of: Vec<RefProperty<'a>>,
 }
 
@@ -74,10 +74,51 @@ pub enum StringFormat {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectProperty<'a> {
-    pub properties: HashMap<&'a str, Property<'a>>,
+    pub properties: ObjectProperties<'a>,
     pub required: Option<Vec<&'a str>>,
     pub title: Option<&'a str>,
     pub additional_properties: bool,
+}
+
+#[derive(Debug)]
+pub struct ObjectProperties<'a>(pub Vec<(&'a str, Property<'a>)>);
+
+impl<'de: 'a, 'a> Deserialize<'de> for ObjectProperties<'a> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ObjectPropertiesVisitor<'a> {
+            value: PhantomData<ObjectProperties<'a>>,
+        }
+
+        impl<'a> ObjectPropertiesVisitor<'a> {
+            fn new() -> Self {
+                Self { value: PhantomData }
+            }
+        }
+
+        impl<'de: 'a, 'a> Visitor<'de> for ObjectPropertiesVisitor<'a> {
+            type Value = ObjectProperties<'a>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("an object property declaration")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: de::MapAccess<'de>,
+            {
+                let mut vec = Vec::with_capacity(map.size_hint().unwrap_or_default());
+                while let Some(t) = map.next_entry()? {
+                    vec.push(t);
+                }
+                Ok(ObjectProperties(vec))
+            }
+        }
+
+        deserializer.deserialize_map(ObjectPropertiesVisitor::new())
+    }
 }
 
 #[derive(Debug, Deserialize)]
