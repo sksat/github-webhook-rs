@@ -46,6 +46,7 @@ mod schema_version {
 
 #[derive(Debug, Deserialize)]
 pub struct Property<'a> {
+    /// this field possibly contains a escape sequence `\"`, so it can't be `&str`
     pub description: Option<String>,
     #[serde(flatten, borrow)]
     pub kind: PropertyKind<'a>,
@@ -88,7 +89,7 @@ pub struct ObjectProperty<'a> {
     pub properties: Option<ObjectProperties<'a>>,
     pub required: Option<Vec<&'a str>>,
     pub title: Option<&'a str>,
-    pub additional_properties: Option<bool>,
+    pub additional_properties: Option<AdditionalProperties<'a>>,
 }
 
 #[derive(Debug)]
@@ -129,6 +130,54 @@ impl<'de: 'a, 'a> Deserialize<'de> for ObjectProperties<'a> {
         }
 
         deserializer.deserialize_map(ObjectPropertiesVisitor::new())
+    }
+}
+
+#[derive(Debug)]
+pub enum AdditionalProperties<'a> {
+    Boolean(bool),
+    Property(Box<PropertyKind<'a>>),
+}
+
+impl<'de: 'a, 'a> Deserialize<'de> for AdditionalProperties<'a> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct AdditionalPropertiesVisitor<'a> {
+            value: PhantomData<AdditionalProperties<'a>>,
+        }
+
+        impl<'a> AdditionalPropertiesVisitor<'a> {
+            fn new() -> Self {
+                Self { value: PhantomData }
+            }
+        }
+
+        impl<'de: 'a, 'a> Visitor<'de> for AdditionalPropertiesVisitor<'a> {
+            type Value = AdditionalProperties<'a>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("an additional property declaration")
+            }
+
+            fn visit_bool<E>(self, b: bool) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(AdditionalProperties::Boolean(b))
+            }
+
+            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            where
+                A: de::MapAccess<'de>,
+            {
+                PropertyKind::deserialize(de::value::MapAccessDeserializer::new(map))
+                    .map(|c| AdditionalProperties::Property(Box::new(c)))
+            }
+        }
+
+        deserializer.deserialize_any(AdditionalPropertiesVisitor::new())
     }
 }
 
@@ -1170,6 +1219,19 @@ mod tests {
         }
         "#;
         let _schema: SchemaVersion = serde_json::from_str(s).unwrap();
+    }
+    #[test]
+    fn test_prop() {
+        let s = r#"
+        {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "bar\""
+        }
+        "#;
+        let _schema: Property = serde_json::from_str(s).unwrap();
     }
     #[test]
     fn test_schema() {
