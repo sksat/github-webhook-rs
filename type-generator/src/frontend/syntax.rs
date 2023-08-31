@@ -69,7 +69,7 @@ pub struct RefProperty<'a> {
 
 #[derive(Debug, Deserialize)]
 pub struct StringProperty {
-    pub format: StringFormat,
+    pub format: Option<StringFormat>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -78,12 +78,14 @@ pub enum StringFormat {
     DateTime,
     #[serde(rename = "uri")]
     Uri,
+    #[serde(rename = "uri-template")]
+    UriTemplate,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectProperty<'a> {
-    pub properties: ObjectProperties<'a>,
+    pub properties: Option<ObjectProperties<'a>>,
     pub required: Option<Vec<&'a str>>,
     pub title: Option<&'a str>,
     pub additional_properties: Option<bool>,
@@ -458,7 +460,7 @@ impl<'de: 'a, 'a> Deserialize<'de> for PropertyKind<'a> {
                         let mut vec =
                             Vec::<&'a str>::with_capacity(seq.size_hint().unwrap_or_default());
                         if NULLABLE {
-                            if let Some(s) = seq.next_element::<Option<&'a str>>()? {
+                            while let Some(s) = seq.next_element::<Option<&'a str>>()? {
                                 if let Some(s) = s {
                                     vec.push(s);
                                 } else {
