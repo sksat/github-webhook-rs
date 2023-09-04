@@ -67,6 +67,12 @@ jobs:
           <meta http-equiv="refresh" content="1;URL=github_webhook">
           EOS
 
+      - name: fix permissions
+        run: |
+          chmod -c -R +rX ./target/doc | while read -r line; do
+            echo "::warning title=Invalid file permissions automatically fixed::$line"
+          done
+
       - name: arcive rustdoc
         uses: actions/upload-pages-artifact@v2.0.0
         with:
