@@ -15,7 +15,7 @@ fn download_example(endpoint: &str, kind: &str, payload: &str) -> String {
     let body = reqwest::blocking::get(&url)
         .unwrap()
         .error_for_status()
-        .expect(&format!("Could not download {url}"))
+        .unwrap_or_else(|_| panic!("Could not download {url}"))
         .text()
         .unwrap();
     std::fs::write(&payload, body).unwrap();
