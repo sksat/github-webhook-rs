@@ -35,8 +35,7 @@ impl ToTokens for TypeName {
         tokens.extend(
             quote! {
                 #name #p
-            }
-            .into_iter(),
+            },
         )
     }
 }
@@ -48,8 +47,7 @@ impl ToTokens for RustStructAttr {
                 RustStructAttr::Serde(s) => quote! {
                     #[serde(#s)]
                 },
-            }
-            .into_iter(),
+            },
         )
     }
 }
@@ -70,8 +68,7 @@ impl ToTokens for SerdeContainerAttr {
                 SerdeContainerAttr::Untagged => quote! {
                     untagged
                 },
-            }
-            .into_iter(),
+            },
         )
     }
 }
@@ -83,8 +80,7 @@ impl ToTokens for RustFieldAttr {
                 RustFieldAttr::Serde(s) => quote! {
                     #[serde(#s)]
                 },
-            }
-            .into_iter(),
+            },
         )
     }
 }
@@ -102,8 +98,7 @@ impl ToTokens for SerdeFieldAttr {
                 SerdeFieldAttr::Flatten => quote! {
                     flatten
                 },
-            }
-            .into_iter(),
+            },
         )
     }
 }
@@ -116,8 +111,7 @@ impl ToTokens for RustType {
                     tokens.extend(
                         quote! {
                             &'a str
-                        }
-                        .into_iter(),
+                        },
                     );
                     return;
                 }
@@ -135,8 +129,7 @@ impl ToTokens for RustType {
                 tokens.extend(
                     quote! {
                         #name #p
-                    }
-                    .into_iter(),
+                    },
                 );
                 return;
             }
@@ -144,8 +137,7 @@ impl ToTokens for RustType {
                 tokens.extend(
                     quote! {
                         Vec<#t>
-                    }
-                    .into_iter(),
+                    },
                 );
                 return;
             }
@@ -164,8 +156,7 @@ impl ToTokens for RustType {
                 tokens.extend(
                     quote! {
                         HashMap<#t1, #t2>
-                    }
-                    .into_iter(),
+                    },
                 );
                 return;
             }
@@ -186,8 +177,7 @@ impl ToTokens for RustMemberType {
                 quote! {
                     #inner_ty
                 }
-            }
-            .into_iter(),
+            },
         )
     }
 }
@@ -208,8 +198,7 @@ impl ToTokens for RustStructMember {
                     #comment
                     #attr
                     pub #name: #ty,
-                }
-                .into_iter(),
+                },
             );
         }
     }
@@ -222,8 +211,7 @@ impl ToTokens for RustComment {
         tokens.extend(
             quote! {
                 #[doc=#c]
-            }
-            .into_iter(),
+            },
         );
     }
 }
@@ -257,8 +245,7 @@ impl ToTokens for RustStruct {
                 pub struct #name #p {
                     #(#member)*
                 }
-            }
-            .into_iter(),
+            },
         );
     }
 }
@@ -284,8 +271,7 @@ impl ToTokens for RustEnum {
                 quote! {
                     #[derive(Debug)]
                 }
-            }
-            .into_iter(),
+            },
         );
 
         let p = if *is_borrowed {
@@ -300,8 +286,7 @@ impl ToTokens for RustEnum {
                 pub enum #name #p {
                     #(#member)*
                 }
-            }
-            .into_iter(),
+            },
         );
     }
 }
@@ -324,8 +309,7 @@ impl ToTokens for RustAlias {
             quote! {
                 #comment
                 pub type #ident #p = #typ;
-            }
-            .into_iter(),
+            },
         )
     }
 }
@@ -362,8 +346,7 @@ impl ToTokens for RustEnumMemberKind {
                         quote!(#variant_name(#type_name),)
                     }
                 }
-            }
-            .into_iter(),
+            },
         )
     }
 }
@@ -375,8 +358,7 @@ impl<Field: ToTokens> ToTokens for Attrs<Field> {
             tokens.extend(
                 quote! {
                     #(#ws)*
-                }
-                .into_iter(),
+                },
             )
         }
     }
@@ -389,8 +371,7 @@ impl ToTokens for RustEnumMember {
             quote! {
                 #attr
                 #kind
-            }
-            .into_iter(),
+            },
         )
     }
 }
@@ -402,8 +383,7 @@ impl ToTokens for RustVariantAttr {
                 RustVariantAttr::Serde(s) => quote! {
                     #[serde(#s)]
                 },
-            }
-            .into_iter(),
+            },
         )
     }
 }
@@ -418,8 +398,7 @@ impl ToTokens for SerdeVariantAttr {
                 SerdeVariantAttr::Borrow => quote! {
                     borrow = "'a"
                 },
-            }
-            .into_iter(),
+            },
         )
     }
 }
