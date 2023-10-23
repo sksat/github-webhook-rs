@@ -21,7 +21,7 @@ version = "v7.2.0"
 [build-dependencies]
 github-webhook-dts-downloader.workspace = true
 anyhow = "1.0.75"
-cargo_metadata = "0.18.0"
+cargo_metadata = "0.18.1"
 
 [dependencies]
 serde = { version = "1.0.189", features = ["derive"] }
