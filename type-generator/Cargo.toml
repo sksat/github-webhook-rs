@@ -20,4 +20,4 @@ structopt = "0.3.26"
 swc_common = { version = "0.33.0", features = ["tty-emitter"]}
 swc_ecma_ast = "0.110.0"
 swc_ecma_parser = "0.141.3"
-once_cell = "1.18.0"
+once_cell = "1.19.0"
