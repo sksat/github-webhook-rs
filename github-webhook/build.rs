@@ -12,6 +12,8 @@ use github_webhook_dts_downloader::download_dts;
 use github_webhook_type_generator::dts2rs;
 
 fn main() -> Result<()> {
+    println!("cargo:rerun-if-env-changed=GITHUB_WEBHOOK_SCHEMA_DTS");
+
     let manifest_dir = env!("CARGO_MANIFEST_DIR").to_string();
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
@@ -46,7 +48,10 @@ fn main() -> Result<()> {
         .unwrap()
         .to_string();
 
-    let dts_file = out_dir.join("schema.d.ts");
+    let dts_file = env::var("GITHUB_WEBHOOK_SCHEMA_DTS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_else(|| out_dir.join("schema.d.ts"));
 
     if !dts_file.try_exists()? {
         download_dts(github_webhook_dts_downloader::Opt {
