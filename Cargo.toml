@@ -16,5 +16,5 @@ authors = ["sksat <sksat@sksat.net>", "s-ylide"]
 rust-version = "1.64.0"
 
 [workspace.dependencies]
-github-webhook-dts-downloader = { path = "./dts-downloader", version = "0.5" }
-github-webhook-type-generator = { path = "./type-generator", version = "0.5" }
+github-webhook-dts-downloader = "0.5"
+github-webhook-type-generator = "0.5"
