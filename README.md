@@ -7,3 +7,6 @@
 
 - [API documentation](https://sksat.github.io/github-webhook-rs/github_webhook)
 - [Release notes](https://github.com/sksat/github-webhook-rs/releases)
+
+## Contiribution
+日本語で OK
