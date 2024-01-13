@@ -48,10 +48,12 @@ fn main() -> Result<()> {
 
     let dts_file = out_dir.join("schema.d.ts");
 
-    download_dts(github_webhook_dts_downloader::Opt {
-        version: github_webhook_dts_downloader::Version(octokit_ver),
-        out_path_ts: github_webhook_dts_downloader::OutPathTs(dts_file.clone()),
-    })?;
+    if !dts_file.try_exists()? {
+        download_dts(github_webhook_dts_downloader::Opt {
+            version: github_webhook_dts_downloader::Version(octokit_ver),
+            out_path_ts: github_webhook_dts_downloader::OutPathTs(dts_file.clone()),
+        })?;
+    }
 
     let rs = dts2rs(&dts_file);
     let rs_file = out_dir.join("types.rs");
