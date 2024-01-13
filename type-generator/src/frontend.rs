@@ -120,7 +120,7 @@ pub fn ts_index_signature<'input>(
     lkm: &mut HashMap<String, HashMap<String, String>>,
 ) -> RustStructMember {
     assert!(index.params.len() == 1);
-    let param = index.params.get(0).unwrap();
+    let param = index.params.first().unwrap();
     let ident = param.as_ident().expect("key is string");
     let mut ctxt = Some(ctxt.clone());
     let (_, key_ty) = ts_type_to_rs(

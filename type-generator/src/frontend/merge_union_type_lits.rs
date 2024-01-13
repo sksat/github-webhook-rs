@@ -8,7 +8,7 @@ pub struct Merged<'a> {
 pub fn merge_union_type_lits<'input>(
     variants: &[&'input swc_ecma_ast::TsTypeLit],
 ) -> Merged<'input> {
-    let mut intersection: Vec<_> = variants.get(0).unwrap().members.iter().collect();
+    let mut intersection: Vec<_> = variants.first().unwrap().members.iter().collect();
     let mut diffs = vec![vec![]];
     for variant in variants[1..].iter() {
         let mut diff: Vec<_> = variant.members.iter().collect();

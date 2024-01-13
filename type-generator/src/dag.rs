@@ -19,7 +19,7 @@ impl<Node: Copy + Hash + Eq + std::fmt::Debug> DirectedAcyclicGraph<Node> {
     fn add_edge(&mut self, from: Node, to: Node) {
         self.nodes.insert(from);
         self.nodes.insert(to);
-        self.edges.entry(from).or_insert(Vec::new()).push(to);
+        self.edges.entry(from).or_default().push(to);
     }
 
     fn topo_sort(&self) -> Result<Vec<Node>, Vec<Node>> {
