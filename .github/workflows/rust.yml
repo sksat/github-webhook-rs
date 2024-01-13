@@ -28,7 +28,7 @@ jobs:
           toolchain: ${{ steps.toolchain.outputs.toolchain }}
 
       - name: cache dependencies
-        uses: Swatinem/rust-cache@v2.7.1
+        uses: Swatinem/rust-cache@v2.7.2
 
       - name: reviewdog / clippy
         uses: sksat/action-clippy@v0.4.0
@@ -55,7 +55,7 @@ jobs:
           toolchain: ${{ steps.toolchain.outputs.toolchain }}
 
       - name: cache dependencies
-        uses: Swatinem/rust-cache@v2.7.1
+        uses: Swatinem/rust-cache@v2.7.2
 
       - name: build rustdoc
         run: |
