@@ -20,6 +20,7 @@ version = "v7.3.1"
 
 [build-dependencies]
 github-webhook-dts-downloader.workspace = true
+github-webhook-type-generator.workspace = true
 anyhow = "1.0.79"
 cargo_metadata = "0.18.1"
 

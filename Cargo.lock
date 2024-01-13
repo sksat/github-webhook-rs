@@ -351,6 +351,7 @@ dependencies = [
  "anyhow",
  "cargo_metadata",
  "github-webhook-dts-downloader",
+ "github-webhook-type-generator",
  "reqwest",
  "serde",
  "serde_json",
@@ -361,7 +362,6 @@ name = "github-webhook-dts-downloader"
 version = "0.5.2"
 dependencies = [
  "anyhow",
- "github-webhook-type-generator",
  "reqwest",
 ]
 
