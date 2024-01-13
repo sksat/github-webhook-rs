@@ -18,3 +18,7 @@ rust-version = "1.64.0"
 [workspace.dependencies]
 github-webhook-dts-downloader = "0.5"
 github-webhook-type-generator = "0.5"
+
+[patch.crates-io]
+github-webhook-dts-downloader = { path = "./dts-downloader" }
+github-webhook-type-generator = { path = "./type-generator" }
