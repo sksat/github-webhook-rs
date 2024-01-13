@@ -10,7 +10,7 @@ pub fn flatten_type(segments: &mut Vec<RustSegment>) {
     segments.retain_mut(|segment| match segment {
         RustSegment::Struct(s) => {
             if s.member.len() == 1 {
-                let r = s.member.get(0).unwrap();
+                let r = s.member.first().unwrap();
                 if r.attr
                     .as_inner()
                     .contains(&RustFieldAttr::Serde(SerdeFieldAttr::Flatten))
