@@ -13,7 +13,7 @@ pub struct Version(pub String);
 
 impl Default for Version {
     fn default() -> Self {
-        Self("master".to_string())
+        Self("main".to_string())
     }
 }
 
