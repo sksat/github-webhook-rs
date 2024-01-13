@@ -55,7 +55,8 @@ impl<Node: Copy + Hash + Eq + std::fmt::Debug> DirectedAcyclicGraph<Node> {
                 }
             }
         }
-        if cfg!(debug_assertions) && in_degree.values().any(|&i| i != 0) {
+        #[cfg(debug_assertions)]
+        if in_degree.values().any(|&i| i != 0) {
             // the graph has cycle
             return Err(self.find_cycle());
         }
