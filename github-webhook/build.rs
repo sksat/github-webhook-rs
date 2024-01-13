@@ -1,11 +1,20 @@
+use std::env;
+use std::fs::File;
+use std::io::{self, BufWriter, Write};
+use std::path::PathBuf;
+use std::process::Command;
+
 use anyhow::Result;
 use cargo_metadata::{CargoOpt, MetadataCommand};
-use std::env;
 
-use github_webhook_dts_downloader::run_transform;
+use github_webhook_dts_downloader::download_dts;
+
+use github_webhook_type_generator::dts2rs;
 
 fn main() -> Result<()> {
     let manifest_dir = env!("CARGO_MANIFEST_DIR").to_string();
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+
     let metadata = MetadataCommand::new()
         .manifest_path(manifest_dir + "/Cargo.toml")
         .features(CargoOpt::AllFeatures)
@@ -37,10 +46,26 @@ fn main() -> Result<()> {
         .unwrap()
         .to_string();
 
-    run_transform(github_webhook_dts_downloader::Opt {
+    let dts_file = out_dir.join("schema.d.ts");
+
+    download_dts(github_webhook_dts_downloader::Opt {
         version: github_webhook_dts_downloader::Version(octokit_ver),
-        ..Default::default()
+        out_path_ts: github_webhook_dts_downloader::OutPathTs(dts_file.clone()),
     })?;
+
+    let rs = dts2rs(&dts_file);
+    let rs_file = out_dir.join("types.rs");
+
+    let mut writer = BufWriter::new(File::create(&rs_file)?);
+    write!(writer, "{rs}")?;
+    writer.into_inner()?;
+
+    let output = Command::new("rustfmt").arg(rs_file).output()?;
+    let status = output.status;
+    if !status.success() {
+        io::stderr().write_all(&output.stderr).unwrap();
+        panic!("failed to execute rustfmt: {status}")
+    }
 
     Ok(())
 }

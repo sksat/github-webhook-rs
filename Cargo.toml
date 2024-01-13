@@ -8,7 +8,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.5.2"
+version = "0.6.0"
 repository = "https://github.com/sksat/github-webhook-rs"
 authors = ["sksat <sksat@sksat.net>", "s-ylide"]
 
@@ -16,5 +16,5 @@ authors = ["sksat <sksat@sksat.net>", "s-ylide"]
 rust-version = "1.64.0"
 
 [workspace.dependencies]
-github-webhook-dts-downloader = { path = "./dts-downloader", version = "0.5" }
-github-webhook-type-generator = { path = "./type-generator", version = "0.5" }
+github-webhook-dts-downloader = { path = "./dts-downloader", version = "0.6" }
+github-webhook-type-generator = { path = "./type-generator", version = "0.6" }
