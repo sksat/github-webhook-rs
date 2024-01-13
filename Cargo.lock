@@ -350,7 +350,7 @@ version = "0.5.2"
 dependencies = [
  "anyhow",
  "cargo_metadata",
- "github-webhook-dts-downloader",
+ "github-webhook-dts-downloader 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "reqwest",
  "serde",
  "serde_json",
@@ -361,13 +361,39 @@ name = "github-webhook-dts-downloader"
 version = "0.5.2"
 dependencies = [
  "anyhow",
- "github-webhook-type-generator",
+ "github-webhook-type-generator 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "reqwest",
+]
+
+[[package]]
+name = "github-webhook-dts-downloader"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "003088ba0b530bf5a82887c01e227927e57efb0a1df8a2e8a354e58818edd5a0"
+dependencies = [
+ "anyhow",
+ "github-webhook-type-generator 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "reqwest",
 ]
 
 [[package]]
 name = "github-webhook-type-generator"
 version = "0.5.2"
+dependencies = [
+ "once_cell",
+ "proc-macro2",
+ "quote",
+ "structopt",
+ "swc_common",
+ "swc_ecma_ast",
+ "swc_ecma_parser",
+]
+
+[[package]]
+name = "github-webhook-type-generator"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "273df03d05812df8729e9e0883ac9fc46fd5db32aa6ac2a9a811f78fe6b09fe6"
 dependencies = [
  "once_cell",
  "proc-macro2",
