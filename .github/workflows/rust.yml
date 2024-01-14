@@ -125,5 +125,6 @@ jobs:
           cargo install cargo-msrv --version 0.16.0-beta.18
 
       - name: check MSRV
+        working-directory: ${{ matrix.crate-path }}
         run: |
           cargo msrv verify --add-component rustfmt
