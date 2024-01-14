@@ -1,7 +1,7 @@
 [package]
 name = "github-webhook"
 version.workspace = true
-rust-version.workspace = true
+rust-version = "1.64.0"
 edition = "2021"
 
 build = "build.rs"
