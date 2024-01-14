@@ -102,3 +102,29 @@ jobs:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - uses: obi1kenobi/cargo-semver-checks-action@e275dda72e250d4df5b564e969e1348d67fefa52 # v2.2
+
+  msrv:
+    strategy:
+      fail-fast: false
+      matrix:
+        crate-path:
+          - github-webhook
+          - type-generator
+          - dts-downloader
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: cache dependencies
+        uses: Swatinem/rust-cache@a22603398250b864f7190077025cf752307154dc # v2.7.2
+
+      - name: install cargo-msrv
+        run: |
+          cargo install cargo-msrv --version 0.16.0-beta.18
+
+      - name: check MSRV
+        working-directory: ${{ matrix.crate-path }}
+        run: |
+          cargo msrv verify --add-component rustfmt
