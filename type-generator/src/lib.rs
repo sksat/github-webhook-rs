@@ -61,9 +61,9 @@ pub fn dts2rs(dts_file: &PathBuf) -> proc_macro2::TokenStream {
                 if ident == "WebhookEvents" {
                     st.segments.push(RustSegment::Alias(RustAlias {
                         name: "WebhookEvents".to_owned(),
-                        is_borrowed: true,
+                        is_borrowed: false,
                         comment,
-                        ty: RustType::Array(Box::new(RustType::String { is_borrowed: true })),
+                        ty: RustType::Array(Box::new(RustType::String { is_borrowed: false })),
                     }));
                     continue; //return Err(anyhow!("lazy skip"));
                 }
