@@ -101,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
-      - uses: obi1kenobi/cargo-semver-checks-action@e275dda72e250d4df5b564e969e1348d67fefa52 # v2.2
+      - uses: obi1kenobi/cargo-semver-checks-action@c7306483f698c511eaf7416d1bf2e1958c90140f # v2.4
 
   msrv:
     strategy:
