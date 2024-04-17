@@ -14,7 +14,7 @@ default = ["serde"]
 serde = []
 
 [dependencies]
-proc-macro2 = "1.0.76"
+proc-macro2 = "1.0.81"
 quote = "1.0.35"
 structopt = "0.3.26"
 swc_common = { version = "0.33.12", features = ["tty-emitter"]}
