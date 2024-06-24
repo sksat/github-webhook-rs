@@ -31,7 +31,7 @@ jobs:
         uses: Swatinem/rust-cache@a22603398250b864f7190077025cf752307154dc # v2.7.2
 
       - name: reviewdog / clippy
-        uses: sksat/action-clippy@251e5ac439e43b83a33b7997bb12d34306ba2394 # v0.4.0
+        uses: sksat/action-clippy@04496073ad8af969ce7abd0ff14d863f25d7057d # v1.0.0
         with:
           reporter: github-pr-review
           clippy_flags: --all-features
