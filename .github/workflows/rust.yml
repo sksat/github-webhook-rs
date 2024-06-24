@@ -122,7 +122,7 @@ jobs:
 
       - name: install cargo-msrv
         run: |
-          cargo install cargo-msrv --version 0.16.0-beta.18
+          cargo install cargo-msrv
 
       - name: check MSRV
         working-directory: ${{ matrix.crate-path }}
