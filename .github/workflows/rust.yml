@@ -122,9 +122,15 @@ jobs:
 
       - name: install cargo-msrv
         run: |
-          cargo install cargo-msrv --version 0.16.0-beta.18
+          cargo install cargo-msrv --version 0.16.0-beta.22 --locked
+
+      # cargo msrv --add-component is not working?
+      - name: install rustfmt manually
+        run: |
+          rustup toolchain install 1.70.0
+          rustup component add --toolchain 1.70.0-x86_64-unknown-linux-gnu rustfmt
 
       - name: check MSRV
         working-directory: ${{ matrix.crate-path }}
         run: |
-          cargo msrv verify --add-component rustfmt
+          cargo msrv verify --log-target stdout
