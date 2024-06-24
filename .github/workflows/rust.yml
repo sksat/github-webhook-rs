@@ -28,7 +28,7 @@ jobs:
           toolchain: ${{ steps.toolchain.outputs.toolchain }}
 
       - name: cache dependencies
-        uses: Swatinem/rust-cache@a22603398250b864f7190077025cf752307154dc # v2.7.2
+        uses: Swatinem/rust-cache@23bce251a8cd2ffc3c1075eaa2367cf899916d84 # v2.7.3
 
       - name: reviewdog / clippy
         uses: sksat/action-clippy@04496073ad8af969ce7abd0ff14d863f25d7057d # v1.0.0
@@ -55,7 +55,7 @@ jobs:
           toolchain: ${{ steps.toolchain.outputs.toolchain }}
 
       - name: cache dependencies
-        uses: Swatinem/rust-cache@a22603398250b864f7190077025cf752307154dc # v2.7.2
+        uses: Swatinem/rust-cache@23bce251a8cd2ffc3c1075eaa2367cf899916d84 # v2.7.3
 
       - name: build rustdoc
         run: |
@@ -118,7 +118,7 @@ jobs:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: cache dependencies
-        uses: Swatinem/rust-cache@a22603398250b864f7190077025cf752307154dc # v2.7.2
+        uses: Swatinem/rust-cache@23bce251a8cd2ffc3c1075eaa2367cf899916d84 # v2.7.3
 
       - name: install cargo-msrv
         run: |
