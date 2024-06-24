@@ -17,7 +17,7 @@ serde = []
 proc-macro2 = "1.0.76"
 quote = "1.0.35"
 structopt = "0.3.26"
-swc_common = { version = "0.33.12", features = ["tty-emitter"]}
-swc_ecma_ast = "0.110.17"
-swc_ecma_parser = "0.141.37"
+swc_common = { version = "0.34.0", features = ["tty-emitter"]}
+swc_ecma_ast = "0.115.0"
+swc_ecma_parser = "0.146.0"
 once_cell = "1.19.0"
