@@ -127,4 +127,4 @@ jobs:
       - name: check MSRV
         working-directory: ${{ matrix.crate-path }}
         run: |
-          cargo msrv verify --add-component rustfmt
+          cargo msrv verify --add-component rustfmt --log-target stdout
