@@ -69,7 +69,6 @@ pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDirectedAcyclicG
                             if mem.ty.ty.is_borrowed() {
                                 mem.attr
                                     .add_attr(RustFieldAttr::Serde(SerdeFieldAttr::Borrow));
-                                break;
                             }
                         }
                     }
@@ -92,7 +91,6 @@ pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDirectedAcyclicG
                                 if t.is_borrowed() {
                                     mem.attr
                                         .add_attr(RustVariantAttr::Serde(SerdeVariantAttr::Borrow));
-                                    break;
                                 }
                             }
                         }
