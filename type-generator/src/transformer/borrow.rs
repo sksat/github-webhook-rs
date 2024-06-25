@@ -35,9 +35,9 @@ pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDirectedAcyclicG
         }
         fn borrow_type(ty: &mut RustType, did_borrow: &mut bool, decorated: &HashSet<String>) {
             match ty {
-                RustType::String { is_borrowed } => {
-                    *is_borrowed = true;
-                    *did_borrow = true;
+                RustType::String { .. } => {
+                    // *is_borrowed = true;
+                    // *did_borrow = true;
                 }
                 RustType::Number => (),
                 RustType::Boolean => (),
