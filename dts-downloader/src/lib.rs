@@ -38,7 +38,8 @@ pub fn download_dts(
     let url =
         format!("https://raw.githubusercontent.com/{repo}/{branch}/payload-types/schema.d.ts");
 
-    let body = reqwest::blocking::get(url)?.text()?;
+    let response = minreq::get(url).send()?;
+    let body = response.as_str()?;
     std::fs::write(&dts_file, body)?;
 
     Ok(())

@@ -12,12 +12,12 @@ fn download_example(endpoint: &str, kind: &str, payload: &str) -> String {
     let out_dir = env!("OUT_DIR");
     let payload = format!("{out_dir}/{payload}");
 
-    let body = reqwest::blocking::get(&url)
-        .unwrap()
-        .error_for_status()
-        .unwrap_or_else(|_| panic!("Could not download {url}"))
-        .text()
-        .unwrap();
+    let response = minreq::get(&url).send().unwrap();
+    if response.status_code / 200 != 1 {
+        // failure
+        panic!("Could not download {url}");
+    }
+    let body = response.as_str().unwrap();
     std::fs::write(&payload, body).unwrap();
 
     payload
