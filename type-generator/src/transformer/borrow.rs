@@ -58,18 +58,14 @@ pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDirectedAcyclicG
         let mut did_borrow = false;
         match seg {
             RustSegment::Struct(s) => {
-                let mut visible = false;
                 for mem in &mut s.member {
                     borrow_type(&mut mem.ty.ty, &mut did_borrow, &decorated);
-                    visible |= mem.ty.ty.is_string();
                 }
                 if did_borrow {
-                    if !visible {
-                        for mem in &mut s.member {
-                            if mem.ty.ty.is_borrowed() {
-                                mem.attr
-                                    .add_attr(RustFieldAttr::Serde(SerdeFieldAttr::Borrow));
-                            }
+                    for mem in &mut s.member {
+                        if mem.ty.ty.is_borrowed() {
+                            mem.attr
+                                .add_attr(RustFieldAttr::Serde(SerdeFieldAttr::Borrow));
                         }
                     }
                     s.is_borrowed = true;
@@ -77,21 +73,17 @@ pub fn adapt_borrow(segments: &mut [RustSegment], type_deps: &CoDirectedAcyclicG
                 }
             }
             RustSegment::Enum(e) => {
-                let mut visible = false;
                 for mem in &mut e.member {
                     if let Some(t) = mem.kind.as_type_mut() {
                         borrow_type(t, &mut did_borrow, &decorated);
-                        visible |= t.is_string();
                     }
                 }
                 if did_borrow {
-                    if !visible {
-                        for mem in &mut e.member {
-                            if let Some(t) = mem.kind.as_type() {
-                                if t.is_borrowed() {
-                                    mem.attr
-                                        .add_attr(RustVariantAttr::Serde(SerdeVariantAttr::Borrow));
-                                }
+                    for mem in &mut e.member {
+                        if let Some(t) = mem.kind.as_type() {
+                            if t.is_borrowed() {
+                                mem.attr
+                                    .add_attr(RustVariantAttr::Serde(SerdeVariantAttr::Borrow));
                             }
                         }
                     }
