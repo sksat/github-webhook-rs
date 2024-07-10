@@ -110,7 +110,7 @@ impl ToTokens for RustType {
                 if *is_borrowed {
                     tokens.extend(
                         quote! {
-                            &'a str
+                            ::std::borrow::Cow<'a, str>
                         },
                     );
                     return;
