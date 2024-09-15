@@ -16,7 +16,7 @@ serde = []
 [dependencies]
 proc-macro2 = "1.0.76"
 quote = "1.0.35"
-structopt = "0.3.26"
+clap = { version = "4.5.17", features = ["derive"] }
 swc_common = { version = "0.34.0", features = ["tty-emitter"]}
 swc_ecma_ast = "0.115.0"
 swc_ecma_parser = "0.146.0"
