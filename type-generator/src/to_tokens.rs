@@ -117,7 +117,7 @@ impl ToTokens for RustType {
                 }
                 "String"
             }
-            RustType::Number => "usize",
+            RustType::Number => "u64",
             RustType::Boolean => "bool",
             RustType::Custom(TypeName { name, is_borrowed }) => {
                 let name = id!(name);
