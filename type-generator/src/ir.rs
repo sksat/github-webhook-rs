@@ -12,14 +12,23 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct Toplevel<'cx> {
-    pub definitions: Vec<ToplevelDefinition<'cx>>,
+/// The intermediate representation of a module containing schema definitions.
+pub struct Module<'cx> {
+    /// Definitions in this module.
+    pub definitions: Vec<Definition<'cx>>,
+
+    /// Possible variants for the payload type in this module. Recall that
+    /// this project generates a type for the entire payload.
     pub variants: Vec<Path<'cx>>,
 }
 
 #[derive(Debug)]
-pub struct ToplevelDefinition<'cx> {
+/// A definition in the IR, representing a schema-defined type.
+pub struct Definition<'cx> {
+    /// An optional documentation for this definition.
     pub doc: Doc<'cx>,
+
+    /// The type identifier for this definition.
     pub ty: Ty<'cx>,
 }
 

@@ -103,6 +103,17 @@ impl<T: ?Sized, Interner> Hash for InternedRef<'_, T, Interner> {
     }
 }
 
+impl<T: ?Sized + PartialOrd, Interner> PartialOrd for InternedRef<'_, T, Interner> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(other.0)
+    }
+}
+impl<T: ?Sized + Ord, Interner> Ord for InternedRef<'_, T, Interner> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(other.0)
+    }
+}
+
 /// Abstraction over [`typed_arena::Arena`].
 pub trait ArenaAlloc<'cx, T> {
     /// Allocates a new value in the arena and returns an interned handle.
