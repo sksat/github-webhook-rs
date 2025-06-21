@@ -1,9 +1,7 @@
 use crate::{
+    arena::ArenaAllocator,
     intern::{Interned, Str, StrInterner},
-    ir::{
-        DefinitionFieldPath, DefinitionPath, FieldPath, FieldPathInterner, Path, PathInterner,
-        TyInterner, TyKind,
-    },
+    ir::{DefinitionPath, FieldPath, FieldTreeNode, Path, PathInterner, TyInterner, TyKind},
 };
 
 /// Arena holding all shared allocations.
@@ -12,7 +10,7 @@ pub struct Arena<'cx> {
     str_interner: StrInterner<'cx>,
     ty_interner: TyInterner<'cx>,
     path_interner: PathInterner<'cx>,
-    field_path_interner: FieldPathInterner<'cx>,
+    field_path_arena: ArenaAllocator<FieldTreeNode<'cx>>,
 }
 
 impl<'cx> Arena<'cx> {
@@ -32,8 +30,8 @@ impl<'cx> Arena<'cx> {
     }
 
     /// Allocates a new field path in the arena.
-    pub fn intern_field_path(&'cx self, path: DefinitionFieldPath<'cx>) -> FieldPath<'cx> {
-        FieldPath(self.field_path_interner.intern(path))
+    pub fn alloc_field_path(&'cx self, path: FieldTreeNode<'cx>) -> FieldPath<'cx> {
+        FieldPath(self.field_path_arena.alloc(path))
     }
 }
 
@@ -42,7 +40,6 @@ impl<'cx> Arena<'cx> {
 /// This context must outlive any references to allocated objects.
 pub struct Context<'cx> {
     arena: &'cx Arena<'cx>,
-    pub pre_interned: PreInterned<'cx>,
 }
 
 impl<'cx> std::ops::Deref for Context<'cx> {
@@ -56,16 +53,6 @@ impl<'cx> std::ops::Deref for Context<'cx> {
 impl<'cx> Context<'cx> {
     /// Creates a new context with a root namespace.
     pub fn new(arena: &'cx Arena<'cx>) -> Self {
-        Self {
-            arena,
-            pre_interned: PreInterned {
-                root_field_path: arena.intern_field_path(DefinitionFieldPath::Root(())),
-            },
-        }
+        Self { arena }
     }
-}
-
-/// A pre-interned constants.
-pub struct PreInterned<'cx> {
-    pub root_field_path: FieldPath<'cx>,
 }

@@ -7,7 +7,8 @@ use github_webhook_type_generator::{
     context::{self},
     ir::{
         self, Additional, ConstEnumVariant, Definition, DefinitionPath, DefinitionRoot, Doc, Field,
-        FieldPath, Module, Override, OverrideField, Path, Primitive, TaggedEnumVariant, Ty, TyKind,
+        FieldPath, Module, Override, OverrideToField, Overrides, Path, Primitive,
+        TaggedEnumVariant, Ty, TyKind,
     },
 };
 
@@ -351,7 +352,7 @@ impl<'cx> Lower<'cx> for AllOfSchema<'cx> {
     ///
     ///  - `base_ty`   – the resolved [`Path`] of the referenced base event type.  
     ///  - `fields`    – every *non-object* leaf inside the extension object,
-    ///                  expressed as [`OverrideField`]s.  Each field path starts
+    ///                  expressed as [`OverrideToField`]s.  Each field path starts
     ///                  with `FieldPath::mk_root(cx)` and is extended via `.descend(...)`.
     ///
     ///  The helper `collect_override_fields` performs a depth-first walk and
@@ -365,17 +366,11 @@ impl<'cx> Lower<'cx> for AllOfSchema<'cx> {
         /*───────────────────────────────────────────────────────────────────────
         2.  Collect all overriding leaves from the extension object
         ───────────────────────────────────────────────────────────────────────*/
-        let mut override_fields: Vec<OverrideField<'cx>> = Vec::new();
+        let mut override_fields: Vec<Overrides<'cx>> = Vec::new();
 
-        collect_override_fields(
-            cx,
-            self.all_of.extension,
-            FieldPath::mk_root(cx),
-            &mut override_fields,
-            path,
-        );
+        collect_override_fields(cx, self.all_of.extension, None, &mut override_fields, path);
 
-        /// Recursively traverses `object_schema`, creating an [`OverrideField`] for
+        /// Recursively traverses `object_schema`, creating an [`Overrides`] for
         /// every leaf that is *not* an `"object"` schema.
         ///
         /// * `current_fp` represents the path from the extension object’s root to the
@@ -383,19 +378,25 @@ impl<'cx> Lower<'cx> for AllOfSchema<'cx> {
         fn collect_override_fields<'cx>(
             cx: &mut Context<'cx>,
             object_schema: ObjectSchema<'cx>,
-            current_fp: FieldPath<'cx>,
-            out: &mut Vec<OverrideField<'cx>>,
+            current_fp: Option<FieldPath<'cx>>,
+            out: &mut Vec<Overrides<'cx>>,
             parent_ty: Path<'cx>,
         ) {
             let required_set = &object_schema.required;
             for (field_name, field_schema) in object_schema.properties {
-                let next_fp = current_fp.descend(cx, cx.intern_str(field_name));
+                let next_fp = FieldPath::new(cx, cx.intern_str(field_name), current_fp);
 
                 match field_schema.content {
                     // recurse
                     SchemaDefinition::Object(inner_obj) => {
                         assert!(!inner_obj.nullable);
-                        collect_override_fields(cx, inner_obj.content, next_fp, out, parent_ty);
+                        collect_override_fields(
+                            cx,
+                            inner_obj.content,
+                            Some(next_fp),
+                            out,
+                            parent_ty,
+                        );
                     }
 
                     // leaf
@@ -404,11 +405,13 @@ impl<'cx> Lower<'cx> for AllOfSchema<'cx> {
 
                         let (doc, ty) = field_schema.lower(cx, parent_ty);
 
-                        out.push(OverrideField {
+                        out.push(Overrides {
                             field_path: next_fp,
-                            required: is_required,
-                            doc,
-                            ty,
+                            content: OverrideToField {
+                                required: is_required,
+                                doc,
+                                ty,
+                            },
                         });
                     }
                 }

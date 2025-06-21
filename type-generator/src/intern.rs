@@ -5,6 +5,8 @@ use std::{
 
 use rustc_hash::FxHashSet;
 
+use crate::arena::{ArenaAlloc, ArenaRefAlloc};
+
 mod sealed {
     /// A zero-sized type used to seal the [`Interned`] struct.
     /// This prevents external implementation on it.
@@ -26,7 +28,7 @@ mod sealed {
     /// This trait is sealed to prevent external implementations.
     ///
     /// [`Interned`]: super::Interned
-    pub trait InternerTrait {
+    pub trait Interner {
         type Interned;
     }
 }
@@ -47,10 +49,10 @@ pub type RefOnlyInterner<'cx, T> = FxHashInterner<'cx, T, NoAlloc>;
 pub struct NoAlloc;
 
 /// A type alias for the interned value type.
-pub type Interned<Interner> = <Interner as sealed::InternerTrait>::Interned;
+pub type Interned<Interner> = <Interner as sealed::Interner>::Interned;
 
 /// A unique `impl` of [`sealed::InternerTrait`].
-impl<'cx, T: ?Sized, Arena> sealed::InternerTrait for FxHashInterner<'cx, T, Arena> {
+impl<'cx, T: ?Sized, Arena> sealed::Interner for FxHashInterner<'cx, T, Arena> {
     type Interned = InternedRef<'cx, T, Self>;
 }
 
@@ -114,45 +116,6 @@ impl<T: ?Sized + Ord, Interner> Ord for InternedRef<'_, T, Interner> {
     }
 }
 
-/// Abstraction over [`typed_arena::Arena`].
-pub trait ArenaAlloc<'cx, T> {
-    /// Allocates a new value in the arena and returns an interned handle.
-    fn alloc(&'cx self, value: T) -> &'cx T;
-}
-
-/// See [`ArenaAlloc`].
-pub trait ArenaRefAlloc<'cx, T: ?Sized> {
-    /// Allocates a new value in the arena and returns an interned handle.
-    fn alloc(&'cx self, value: &T) -> &'cx T;
-}
-
-/// A handler for copying references into a hash set without allocating a new one.
-pub trait RefCopy<'cx, T: ?Sized> {
-    /// Copies the value into the container, without allocating a new one.
-    fn copy(&'cx self, value: &'cx T);
-}
-
-impl<'cx> ArenaRefAlloc<'cx, str> for typed_arena::Arena<u8> {
-    fn alloc(&'cx self, value: &str) -> &'cx str {
-        self.alloc_str(value)
-    }
-}
-
-impl<'cx, T> ArenaAlloc<'cx, T> for typed_arena::Arena<T> {
-    fn alloc(&'cx self, value: T) -> &'cx T {
-        self.alloc(value)
-    }
-}
-
-/// Any type can be [`RefCopy`] as it does not allocate. Especially [`typed_arena::Arena<T>`]
-/// can be used to intern references without allocation.
-impl<'cx, T: ?Sized, Any> RefCopy<'cx, T> for Any {
-    fn copy(&'cx self, _value: &'cx T) {
-        // No-op, as this trait is used to indicate that the value is copied
-        // without allocating a new one.
-    }
-}
-
 /// A hash-based interner that uses an arena for storage.
 ///
 /// Use [`StrInterner`] or [`Interner`] for standard uses.
@@ -204,6 +167,21 @@ impl<'cx, T: ?Sized + Hash + Eq, Arena: ArenaRefAlloc<'cx, T>> FxHashInterner<'c
         let new_ref = self.arena.alloc(value);
         lock.insert(new_ref);
         InternedRef::new(new_ref)
+    }
+}
+
+/// A handler for copying references into a hash set without allocating a new one.
+pub trait RefCopy<'cx, T: ?Sized> {
+    /// Copies the value into the container, without allocating a new one.
+    fn copy(&'cx self, value: &'cx T);
+}
+
+/// Any type can be [`RefCopy`] as it does not allocate. Especially [`typed_arena::Arena<T>`]
+/// can be used to intern references without allocation.
+impl<'cx, T: ?Sized, Any> RefCopy<'cx, T> for Any {
+    fn copy(&'cx self, _value: &'cx T) {
+        // No-op, as this trait is used to indicate that the value is copied
+        // without allocating a new one.
     }
 }
 

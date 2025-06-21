@@ -4,7 +4,12 @@
 //! the types are intended for use with `serde` and represent structurally valid
 //! Rust data models.
 
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    fmt::Debug,
+    hash::{Hash, Hasher},
+};
 
 use crate::{
     context::Context,
@@ -63,20 +68,6 @@ impl<'cx> std::ops::Deref for Path<'cx> {
 
 pub type PathInterner<'cx> = Interner<'cx, DefinitionPath<'cx>>;
 
-/// An interned relative path to a field within a schema-defined type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FieldPath<'cx>(pub Interned<FieldPathInterner<'cx>>);
-
-impl<'cx> std::ops::Deref for FieldPath<'cx> {
-    type Target = Interned<FieldPathInterner<'cx>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-pub type FieldPathInterner<'cx> = Interner<'cx, DefinitionFieldPath<'cx>>;
-
 /// Identifies a schema-defined type by its root name and field path.
 ///
 /// This path describes the origin of a type in terms of its position within a
@@ -94,12 +85,10 @@ pub type FieldPathInterner<'cx> = Interner<'cx, DefinitionFieldPath<'cx>>;
 ///  #/definitions/branch_protection_rule$edited/properties/changes/properties/from
 ///                ▲ base                ▲ optional variant ▲ field            ▲ field
 /// ```
-pub type DefinitionPath<'cx> = SinglyLinkedListPath<'cx, DefinitionRoot<'cx>>;
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum SinglyLinkedListPath<'cx, Root> {
+pub enum DefinitionPath<'cx> {
     /// A root path.
-    Root(Root),
+    Root(DefinitionRoot<'cx>),
 
     /// A path that descends through a field of a parent.
     Field {
@@ -114,15 +103,15 @@ pub enum SinglyLinkedListPath<'cx, Root> {
     },
 }
 
-impl<'cx, Root> SinglyLinkedListPath<'cx, Root> {
-    pub fn as_root(&self) -> Option<&Root> {
+impl<'cx> DefinitionPath<'cx> {
+    pub fn as_root(&self) -> Option<&DefinitionRoot<'cx>> {
         if let Self::Root(v) = self {
             Some(v)
         } else {
             None
         }
     }
-    pub fn root(&self) -> &Root {
+    pub fn root(&self) -> &DefinitionRoot<'cx> {
         match self {
             Self::Root(v) => v,
             Self::Field { parent, .. } => parent.root(),
@@ -133,29 +122,12 @@ impl<'cx, Root> SinglyLinkedListPath<'cx, Root> {
 impl<'cx> Path<'cx> {
     /// Creates a new root path with the given definition root.
     pub fn mk_root(cx: &Context<'cx>, root: DefinitionRoot<'cx>) -> Self {
-        cx.intern_path(SinglyLinkedListPath::Root(root))
+        cx.intern_path(DefinitionPath::Root(root))
     }
 
     /// Creates a new field path from an existing parent path and field name.
     pub fn descend(self, cx: &Context<'cx>, field: Str<'cx>) -> Self {
-        cx.intern_path(SinglyLinkedListPath::Field {
-            parent: self.0,
-            field,
-        })
-    }
-}
-
-pub type DefinitionFieldPath<'cx> = SinglyLinkedListPath<'cx, ()>;
-
-impl<'cx> FieldPath<'cx> {
-    /// Creates a new root field path.
-    pub fn mk_root(cx: &Context<'cx>) -> FieldPath<'cx> {
-        cx.intern_field_path(SinglyLinkedListPath::Root(()))
-    }
-
-    /// Creates a new field path from an existing parent path and field name.
-    pub fn descend(self, cx: &Context<'cx>, field: Str<'cx>) -> FieldPath<'cx> {
-        cx.intern_field_path(SinglyLinkedListPath::Field {
+        cx.intern_path(DefinitionPath::Field {
             parent: self.0,
             field,
         })
@@ -174,6 +146,61 @@ pub struct DefinitionRoot<'cx> {
 
     /// An optional discriminant tag, used in tagged unions (e.g., `"opened"`).
     pub variant: Option<Str<'cx>>,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct FieldPath<'cx>(pub &'cx FieldTreeNode<'cx>);
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+/// One segment node in the shared path tree.
+pub struct FieldTreeNode<'cx> {
+    pub field_name: Str<'cx>,
+    parent: Option<FieldPath<'cx>>,
+    child: FieldTreeChildArray<'cx>,
+}
+
+impl<'cx> FieldTreeNode<'cx> {
+    fn new(field_name: Str<'cx>, parent: Option<FieldPath<'cx>>) -> Self {
+        Self {
+            field_name,
+            parent,
+            child: FieldTreeChildArray::new(),
+        }
+    }
+}
+
+#[derive(Default, Debug, PartialEq, Eq)]
+/// Fixed-capacity child container with interior mutability.
+pub struct FieldTreeChildArray<'cx> {
+    content: RefCell<Vec<FieldPath<'cx>>>,
+}
+
+impl<'cx> FieldTreeChildArray<'cx> {
+    pub fn new() -> Self {
+        Self {
+            content: RefCell::new(Vec::new()),
+        }
+    }
+
+    pub fn push(&self, child: FieldPath<'cx>) {
+        self.content.borrow_mut().push(child);
+    }
+}
+
+impl Hash for FieldTreeChildArray<'_> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.content.borrow().hash(state);
+    }
+}
+
+impl<'cx> FieldPath<'cx> {
+    pub fn new(cx: &Context<'cx>, field: Str<'cx>, parent: Option<FieldPath<'cx>>) -> Self {
+        let this = cx.alloc_field_path(FieldTreeNode::new(field, parent));
+        if let Some(parent) = parent {
+            parent.0.child.push(this);
+        }
+        this
+    }
 }
 
 /// A human-readable comment block describing a type or member.
@@ -382,7 +409,7 @@ impl<'cx> Ty<'cx> {
 }
 
 /// Extra keys allowed in a struct object.
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Additional<'cx> {
     /// Disallows arbitrary keys.
     None,
@@ -400,16 +427,21 @@ pub struct Override<'cx> {
     /// The base type to which this override applies.
     pub base_ty: Path<'cx>,
 
-    /// A list of override fields that modify the base type.
-    pub fields: Vec<OverrideField<'cx>>,
+    /// A list of overrides that modify the base type.
+    pub fields: Vec<Overrides<'cx>>,
 }
 
-/// An override field that modifies a field in a base type.
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct OverrideField<'cx> {
+pub struct Overrides<'cx> {
     /// Field path.
     pub field_path: FieldPath<'cx>,
 
+    pub content: OverrideToField<'cx>,
+}
+
+/// An override to field that modifies a field in a base type.
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct OverrideToField<'cx> {
     pub required: bool,
 
     /// Optional documentation for the field.
