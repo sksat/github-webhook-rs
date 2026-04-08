@@ -13,8 +13,8 @@
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": [
-        "^rust-toolchain(\\.toml)?$"
+      "managerFilePatterns": [
+        "/^rust-toolchain(\\.toml)?$/"
       ],
       "matchStrings": [
         "channel\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
@@ -25,8 +25,8 @@
     },
     {
       "customType": "regex",
-      "fileMatch": [
-        "^github-webhook/Cargo.toml$"
+      "managerFilePatterns": [
+        "/^github-webhook/Cargo.toml$/"
       ],
       "matchStrings": [
         "name = \"github-webhook\"\\nversion = \".*\\+(?<currentValue>v\\d+\\.\\d+\\.\\d+)\"",
@@ -37,8 +37,8 @@
     },
     {
       "customType": "regex",
-      "fileMatch": [
-        "^Dockerfile$"
+      "managerFilePatterns": [
+        "/^Dockerfile$/"
       ],
       "matchStrings": [
         "# depName=(?<depName>.*?) datasource=(?<datasource>.*)\nARG .*_VERSION=\"(?<currentValue>.*)\""
